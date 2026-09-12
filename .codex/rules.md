@@ -1,0 +1,21 @@
+# Project Rules
+
+- Use `pnpm` for dependency installation and scripts.
+- Run `pnpm typecheck` after TypeScript changes.
+- Keep page-level state in `app/page.tsx` and reusable UI in `components/`.
+- Keep ledger types and validation in `backend/`.
+- Add Next.js API handlers under `app/api/<name>/route.ts`.
+- Prefer the existing shadcn components from `components/ui`.
+- Do not commit generated folders such as `.next/` or `node_modules/`.
+- Official ledger upload format is CSV only.
+- Support the old CSV shape when present, including files that already contain `store_name`.
+- Keep CSV templates in `public/` for download/testing.
+- Keep vendor and store master lists in `backend/masters/master-data.ts`.
+- New party CSV templates should not include `store_name`; store comes from the form dropdown.
+- If an uploaded old CSV contains `store_name`, preserve that file value instead of overwriting it.
+- If an uploaded CSV does not contain `store_name`, map the selected dropdown store onto imported rows.
+- Keep auth, role, permission, and session logic under `backend/auth/`.
+- Enforce permissions in API/backend code, not only by hiding UI controls.
+- Use `backend/auth/api-guard.ts` for permission checks in API routes.
+- Keep dashboard/admin module definitions in `backend/auth/modules.ts`.
+- Login starts at `app/login/page.tsx`; dashboard shell lives at `app/dashboard/page.tsx`.
