@@ -11,8 +11,8 @@ export default function LoginPage() {
   const router = useRouter();
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("admin@example.com");
-  const [password, setPassword] = useState("admin123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -99,7 +99,7 @@ export default function LoginPage() {
                 Full name
                 <div className="relative">
                   <UserPlus className="pointer-events-none absolute left-2.5 top-2 size-4 text-muted-foreground" />
-                  <Input className="pl-8" value={fullName} onChange={(event) => setFullName(event.target.value)} />
+                  <Input autoComplete="off" className="pl-8" value={fullName} onChange={(event) => setFullName(event.target.value)} />
                 </div>
               </label>
             )}
@@ -108,7 +108,7 @@ export default function LoginPage() {
               Email
               <div className="relative">
                 <Mail className="pointer-events-none absolute left-2.5 top-2 size-4 text-muted-foreground" />
-                <Input className="pl-8" value={email} onChange={(event) => setEmail(event.target.value)} type="email" />
+                <Input autoComplete="off" className="pl-8" value={email} onChange={(event) => setEmail(event.target.value)} type="email" />
               </div>
             </label>
 
@@ -116,7 +116,7 @@ export default function LoginPage() {
               Password
               <div className="relative">
                 <LockKeyhole className="pointer-events-none absolute left-2.5 top-2 size-4 text-muted-foreground" />
-                <Input className="pl-8" value={password} onChange={(event) => setPassword(event.target.value)} type="password" />
+                <Input autoComplete="new-password" className="pl-8" value={password} onChange={(event) => setPassword(event.target.value)} type="password" />
               </div>
             </label>
 
@@ -125,7 +125,7 @@ export default function LoginPage() {
                 Confirm password
                 <div className="relative">
                   <LockKeyhole className="pointer-events-none absolute left-2.5 top-2 size-4 text-muted-foreground" />
-                  <Input className="pl-8" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} type="password" />
+                  <Input autoComplete="new-password" className="pl-8" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} type="password" />
                 </div>
               </label>
             )}

@@ -10,6 +10,7 @@ import { UsersAdminPanel } from "@/components/admin/users-admin-panel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type DashboardWorkspaceProps = {
   adminModules: AppModule[];
@@ -42,11 +43,22 @@ type ReportResult = {
 };
 
 const reportTypes = ["Vendor Report", "Store Report", "Date Range Report", "Pending Balance", "Upload Batch", "Credit Notes"] as const;
+const reportDescriptions: Record<(typeof reportTypes)[number], string> = {
+  "Credit Notes": "Credit note and credit transaction listing",
+  "Date Range Report": "Invoice level entries between selected dates",
+  "Pending Balance": "Open invoices with remaining pending balance",
+  "Store Report": "Store-wise debit, credit and pending totals",
+  "Upload Batch": "Saved CSV upload batches from MongoDB",
+  "Vendor Report": "Vendor-wise debit, credit and pending totals",
+};
 
 export function DashboardWorkspace({ adminModules, dashboardModules, permissions, user }: DashboardWorkspaceProps) {
   const workItems = useMemo(() => dashboardModules.map((module) => toWorkspaceItem(module, "work")), [dashboardModules]);
   const adminItems = useMemo(() => adminModules.map((module) => toWorkspaceItem(module, "admin")), [adminModules]);
   const items = useMemo(() => [...workItems, ...adminItems], [adminItems, workItems]);
+  const workMenuItems = useMemo(() => workItems.filter((item) => item.module.title !== "Reports"), [workItems]);
+  const reportMenuItems = useMemo(() => items.filter((item) => item.module.title === "Reports"), [items]);
+  const adminMenuItems = useMemo(() => adminItems.filter((item) => item.module.title !== "Reports"), [adminItems]);
   const [selectedKey, setSelectedKey] = useState(items[0]?.key ?? "overview");
   const selectedItem = items.find((item) => item.key === selectedKey);
   const [adminConfig, setAdminConfig] = useState<AdminConfig>({
@@ -74,27 +86,52 @@ export function DashboardWorkspace({ adminModules, dashboardModules, permissions
   return (
     <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
       <aside className="rounded-xl border bg-muted/20 p-4">
-        <p className="text-sm font-medium">Work Area</p>
-        <nav className="mt-4 grid gap-1">
-          {workItems.map((item) => (
-            <SidebarButton
-              description={item.module.description}
-              isActive={selectedKey === item.key}
-              key={item.key}
-              onClick={() => setSelectedKey(item.key)}
-              title={item.module.title}
-            />
-          ))}
-        </nav>
+        <details className="mt-5" open>
+          <summary className="flex cursor-pointer list-none items-center justify-between text-sm font-medium">
+            Work Area
+            <ChevronDown className="size-4" />
+          </summary>
+          <nav className="mt-3 grid gap-1">
+            {workMenuItems.map((item) => (
+              <SidebarButton
+                description={item.module.description}
+                isActive={selectedKey === item.key}
+                key={item.key}
+                onClick={() => setSelectedKey(item.key)}
+                title={item.module.title}
+              />
+            ))}
+          </nav>
+        </details>
 
-        {adminModules.length > 0 && (
+        {reportMenuItems.length > 0 && (
+          <details className="mt-5" open>
+            <summary className="flex cursor-pointer list-none items-center justify-between text-sm font-medium">
+              Reports
+              <ChevronDown className="size-4" />
+            </summary>
+            <nav className="mt-3 grid gap-1">
+              {reportMenuItems.map((item) => (
+                <SidebarButton
+                  description={item.module.description}
+                  isActive={selectedKey === item.key}
+                  key={item.key}
+                  onClick={() => setSelectedKey(item.key)}
+                  title={item.section === "admin" ? "Admin Reports" : "Reports"}
+                />
+              ))}
+            </nav>
+          </details>
+        )}
+
+        {adminMenuItems.length > 0 && (
           <details className="mt-5" open>
             <summary className="flex cursor-pointer list-none items-center justify-between text-sm font-medium">
               Admin
               <ChevronDown className="size-4" />
             </summary>
             <nav className="mt-3 grid gap-1">
-              {adminItems.map((item) => (
+              {adminMenuItems.map((item) => (
                 <SidebarButton
                   description={item.module.description}
                   isActive={selectedKey === item.key}
@@ -493,11 +530,16 @@ function PermissionsPanel({
         <div className="rounded-lg border p-4">
           <h3 className="font-medium">Manage Permission</h3>
           <div className="mt-3 grid gap-3 md:grid-cols-[240px_1fr]">
-            <select className="h-8 rounded-lg border bg-background px-2" value={selectedRole} onChange={(event) => setSelectedRole(event.target.value as RoleCode)}>
+            <Select value={selectedRole} onValueChange={(value) => setSelectedRole(value as RoleCode)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Role" />
+              </SelectTrigger>
+              <SelectContent>
               {roleCodes.map((roleCode) => (
-                <option key={roleCode}>{roleCode}</option>
+                <SelectItem key={roleCode} value={roleCode}>{roleCode}</SelectItem>
               ))}
-            </select>
+              </SelectContent>
+            </Select>
             <div className="relative">
               <button
                 className="flex h-8 w-full items-center justify-between rounded-lg border bg-background px-2 text-left text-sm"
@@ -701,38 +743,69 @@ function ReportsPanel({ description, title }: { description: string; title: stri
     setMessage(`${type} generated`);
   }
 
+  function exportCsv() {
+    if (!reportResult?.rows.length) {
+      setMessage("No rows available to export");
+      return;
+    }
+
+    const columns = Array.from(new Set(reportResult.rows.flatMap((row) => Object.keys(row))));
+    const csvRows = [
+      columns.join(","),
+      ...reportResult.rows.map((row) =>
+        columns
+          .map((column) => `"${String(row[column] ?? "").replaceAll('"', '""')}"`)
+          .join(","),
+      ),
+    ];
+    const blob = new Blob([csvRows.join("\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${reportType.toLowerCase().replaceAll(" ", "-")}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <CardTitle>{title}</CardTitle>
+            <CardDescription>{description}</CardDescription>
+          </div>
+          <span className="rounded-full border bg-muted px-3 py-1 text-xs text-muted-foreground">DB: vendor_ledger</span>
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid gap-3 md:grid-cols-[1fr_1fr_1fr_auto]">
-          <select className="h-10 rounded-lg border bg-background px-3" value={reportType} onChange={(event) => setReportType(event.target.value as (typeof reportTypes)[number])}>
+        <div className="rounded-xl border bg-muted/20 p-4">
+          <div className="grid gap-3 md:grid-cols-[1fr_1fr_1fr_auto_auto]">
+          <Select
+            value={reportType}
+            onValueChange={(value) => {
+              setReportType(value as (typeof reportTypes)[number]);
+              setReportResult(null);
+              setMessage("");
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Report Type" />
+            </SelectTrigger>
+            <SelectContent>
             {reportTypes.map((name) => (
-              <option key={name}>{name}</option>
+              <SelectItem key={name} value={name}>{name}</SelectItem>
             ))}
-          </select>
+            </SelectContent>
+          </Select>
           <Input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} />
           <Input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} />
           <Button onClick={() => runReport()}>{isLoading ? "Running..." : "Run Report"}</Button>
+          <Button variant="outline" onClick={exportCsv}>Export CSV</Button>
+          </div>
         </div>
-        <div className="grid gap-3 md:grid-cols-3">
-        {reportTypes.map((name) => (
-          <button
-            className={`rounded-lg border p-4 text-left transition hover:bg-muted ${reportType === name ? "bg-muted" : ""}`}
-            key={name}
-            onClick={() => {
-              setReportType(name);
-              void runReport(name);
-            }}
-            type="button"
-          >
-            <h3 className="font-medium">{name}</h3>
-            <p className="mt-1 text-sm text-muted-foreground">Generate from saved ledger database.</p>
-          </button>
-        ))}
+        <div className="grid gap-3">
+          <ReportTypeCard title={reportType} />
         </div>
         {reportResult && (
           <div className="grid gap-3 md:grid-cols-4">
@@ -743,32 +816,54 @@ function ReportsPanel({ description, title }: { description: string; title: stri
           </div>
         )}
         {message && <p className="rounded-lg border bg-muted/40 p-3 text-sm text-muted-foreground">{message}</p>}
-        {reportResult && <ReportTable rows={reportResult.rows} />}
+        {reportResult && <ReportTable reportType={reportType} rows={reportResult.rows} />}
       </CardContent>
     </Card>
   );
 }
 
-function ReportTable({ rows }: { rows: ReportRow[] }) {
+function ReportTypeCard({ title }: { title: (typeof reportTypes)[number] }) {
+  return (
+    <div className="rounded-xl border border-primary bg-muted p-4 ring-2 ring-ring/30">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="font-medium">{title}</h3>
+          <p className="mt-1 text-xs text-muted-foreground">Selected report. Click Run Report to generate data.</p>
+        </div>
+        <span className="rounded-full bg-background px-2 py-1 text-[10px] text-muted-foreground">Mongo</span>
+      </div>
+      <p className="mt-2 text-sm text-muted-foreground">{reportDescriptions[title]}</p>
+    </div>
+  );
+}
+
+function ReportTable({ reportType, rows }: { reportType: string; rows: ReportRow[] }) {
   const columns = Array.from(new Set(rows.flatMap((row) => Object.keys(row))));
 
   if (rows.length === 0) {
-    return <div className="rounded-lg border p-4 text-sm text-muted-foreground">No report rows found.</div>;
+    return <div className="rounded-xl border bg-muted/20 p-6 text-center text-sm text-muted-foreground">No rows found for {reportType}.</div>;
   }
 
   return (
-    <div className="overflow-x-auto rounded-lg border">
+    <div className="overflow-hidden rounded-xl border">
+      <div className="flex items-center justify-between border-b bg-muted/30 p-3">
+        <div>
+          <h3 className="font-medium">{reportType}</h3>
+          <p className="text-sm text-muted-foreground">{rows.length} rows from saved ledger data</p>
+        </div>
+      </div>
+      <div className="overflow-x-auto">
       <table className="w-full min-w-[860px] text-sm">
-        <thead>
+        <thead className="bg-muted/40">
           <tr className="border-b text-left">
             {columns.map((column) => (
-              <th className="p-3" key={column}>{toTitle(column)}</th>
+              <th className="p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground" key={column}>{toTitle(column)}</th>
             ))}
           </tr>
         </thead>
         <tbody>
           {rows.map((row, index) => (
-            <tr className="border-b" key={index}>
+            <tr className="border-b transition-colors hover:bg-muted/30" key={index}>
               {columns.map((column) => (
                 <td className="p-3" key={column}>{formatReportValue(row[column])}</td>
               ))}
@@ -776,6 +871,7 @@ function ReportTable({ rows }: { rows: ReportRow[] }) {
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

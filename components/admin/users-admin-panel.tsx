@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Check, RefreshCcw, UserX } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { RoleCode, User, UserStatus } from "@/backend/auth/types";
 import { stores } from "@/backend/masters/master-data";
 
@@ -228,11 +229,16 @@ function UserTable({
               <td className="p-3">{user.email}</td>
               <td className="p-3">{user.status}</td>
               <td className="p-3">
-                <select className="h-8 rounded-lg border px-2" value={selectedRoles[user.email] ?? user.roleCode} onChange={(event) => onRoleChange(user.email, event.target.value as RoleCode)}>
+                <Select value={selectedRoles[user.email] ?? user.roleCode} onValueChange={(value) => onRoleChange(user.email, value as RoleCode)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Role" />
+                  </SelectTrigger>
+                  <SelectContent>
                   {roles.map((role) => (
-                    <option key={role}>{role}</option>
+                    <SelectItem key={role} value={role}>{role}</SelectItem>
                   ))}
-                </select>
+                  </SelectContent>
+                </Select>
               </td>
               <td className="p-3">
                 <StoreMultiSelect
