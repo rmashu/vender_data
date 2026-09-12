@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { hashPassword } from "@/backend/auth/password";
-import { createNewUser } from "@/backend/auth/user-repository";
+import { isMongoConfigured } from "@/backend/database/mongodb";
+import { createNewUser, getExistingUserStatus } from "@/backend/auth/user-repository";
 
 export async function POST(request: Request) {
   let payload: unknown;
@@ -27,6 +28,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Password must be at least 6 characters" }, { status: 400 });
   }
 
+  if (!isMongoConfigured()) {
+    return NextResponse.json({ error: "Database is not configured. Please set MONGODB_URI." }, { status: 500 });
+  }
+
+  const existingStatus = await getExistingUserStatus(payload.email.trim());
+
+  if (existingStatus === "PENDING") {
+    return NextResponse.json({ error: "User already exists and is pending admin approval." }, { status: 409 });
+  }
+
+  if (existingStatus === "ACTIVE") {
+    return NextResponse.json({ error: "User already exists. Please login or ask admin to reset password." }, { status: 409 });
+  }
+
+  if (existingStatus === "INACTIVE") {
+    return NextResponse.json({ error: "User already exists but is inactive. Please contact admin." }, { status: 409 });
+  }
+
   const passwordHash = await hashPassword(payload.password);
   const user = await createNewUser({
     name: payload.fullName.trim(),
@@ -35,7 +54,7 @@ export async function POST(request: Request) {
   });
 
   if (!user) {
-    return NextResponse.json({ error: "User already exists or database is not configured" }, { status: 409 });
+    return NextResponse.json({ error: "Unable to create user. Please try again." }, { status: 500 });
   }
 
   return NextResponse.json({

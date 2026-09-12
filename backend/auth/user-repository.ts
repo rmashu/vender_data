@@ -97,6 +97,19 @@ export async function createNewUser(input: CreateUserInput): Promise<User | null
   return user;
 }
 
+export async function getExistingUserStatus(email: string): Promise<UserStatus | null> {
+  if (!isMongoConfigured()) {
+    return null;
+  }
+
+  const db = await getMongoDb();
+  const user = await db
+    .collection<UserDocument>("users")
+    .findOne({ email: email.toLowerCase() }, { projection: { status: 1 } });
+
+  return user?.status ? normalizeStatus(user.status) : null;
+}
+
 export async function getUserPasswordHash(email: string): Promise<string | null> {
   if (!isMongoConfigured()) {
     return null;

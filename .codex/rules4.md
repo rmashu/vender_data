@@ -27,3 +27,5 @@
 - ADMIN always gets all stores; MANAGER, STAFF and VIEWER can receive multiple assigned stores.
 - Reports now generate from MongoDB `vendor_ledgers` for Vendor, Store, Date Range, Pending Balance, Upload Batch and Credit Notes.
 - Reports respect role-based store scope: ADMIN sees all stores, other roles see assigned stores only.
+- Signup now returns clear existing-user messages for pending, active and inactive users instead of a generic database error.
+- MongoDB database name is standardized to `vendor_ledger`; set `MONGODB_DB=vendor_ledger` in local and deploy environments.
