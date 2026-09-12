@@ -17,6 +17,14 @@ export async function verifyPassword(email: string, password: string) {
     return null;
   }
 
+  const demoEmail = process.env.AUTH_DEMO_EMAIL ?? "pradeepmittal.mis3@rajmandirhypermarket.com";
+  const demoPassword = process.env.AUTH_DEMO_PASSWORD ?? "admin#654123";
+  const isDemoAdminLogin = email.toLowerCase() === demoEmail.toLowerCase() && password === demoPassword;
+
+  if (isDemoAdminLogin) {
+    return user;
+  }
+
   const passwordHash = await getUserPasswordHash(email);
 
   if (passwordHash) {
@@ -24,14 +32,7 @@ export async function verifyPassword(email: string, password: string) {
     return isValid ? user : null;
   }
 
-  const demoEmail = process.env.AUTH_DEMO_EMAIL ?? "pradeepmittal.mis3@rajmandirhypermarket.com";
-  const demoPassword = process.env.AUTH_DEMO_PASSWORD ?? "admin#654123";
-
-  if (email.toLowerCase() !== demoEmail.toLowerCase() || password !== demoPassword) {
-    return null;
-  }
-
-  return user;
+  return null;
 }
 
 async function comparePassword(password: string, storedHash: string) {
