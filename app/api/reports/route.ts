@@ -30,6 +30,9 @@ export async function GET(request: Request) {
       dateFrom: url.searchParams.get("from") ?? undefined,
       dateTo: url.searchParams.get("to") ?? undefined,
       reportType,
+      status: url.searchParams.get("status") ?? undefined,
+      store: url.searchParams.get("store") ?? undefined,
+      vendor: url.searchParams.get("vendor") ?? undefined,
     },
     guard.session,
   );

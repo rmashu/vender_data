@@ -28,4 +28,10 @@
 - Reports now generate from MongoDB `vendor_ledgers` for Vendor, Store, Date Range, Pending Balance, Upload Batch and Credit Notes.
 - Reports respect role-based store scope: ADMIN sees all stores, other roles see assigned stores only.
 - Signup now returns clear existing-user messages for pending, active and inactive users instead of a generic database error.
+- Reports now support vendor, store, status and date filters.
+- All Records now loads searchable MongoDB batch records with role/store scope.
+- My Work now loads the logged-in user's uploaded batches.
+- Notifications now load recent audit-log activity.
+- Analysis now loads dashboard KPI values from MongoDB.
+- Ledger save API now rejects uploads for stores outside the user's assigned store scope.
 - MongoDB database name is standardized to `vendor_ledger`; set `MONGODB_DB=vendor_ledger` in local and deploy environments.

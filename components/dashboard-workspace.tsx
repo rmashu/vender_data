@@ -42,6 +42,16 @@ type ReportResult = {
   };
 };
 
+type RecordsResult = {
+  rows: ReportRow[];
+  summary: {
+    batches: number;
+    pendingBalance: number;
+    rows: number;
+    todayUploads: number;
+  };
+};
+
 const reportTypes = ["Vendor Report", "Store Report", "Date Range Report", "Pending Balance", "Upload Batch", "Credit Notes"] as const;
 const reportDescriptions: Record<(typeof reportTypes)[number], string> = {
   "Credit Notes": "Credit note and credit transaction listing",
@@ -84,8 +94,8 @@ export function DashboardWorkspace({ adminModules, dashboardModules, permissions
   }, []);
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
-      <aside className="rounded-xl border bg-muted/20 p-4">
+    <div className="grid min-h-[calc(100vh-140px)] gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
+      <aside className="max-h-[calc(100vh-140px)] overflow-y-auto rounded-xl border bg-muted/20 p-3 sm:p-4 xl:sticky xl:top-4">
         <details className="mt-5" open>
           <summary className="flex cursor-pointer list-none items-center justify-between text-sm font-medium">
             Work Area
@@ -145,7 +155,7 @@ export function DashboardWorkspace({ adminModules, dashboardModules, permissions
         )}
       </aside>
 
-      <section className="space-y-4">
+      <section className="min-w-0 space-y-4">
         <WorkspacePanel adminConfig={adminConfig} item={selectedItem} onAdminConfigChange={setAdminConfig} user={user} />
 
         <Card>
@@ -248,6 +258,20 @@ function WorkAreaPanel({ item, user }: { item: WorkspaceItem; user: User }) {
 }
 
 function MyWorkPanel({ user }: { user: User }) {
+  const [work, setWork] = useState<RecordsResult | null>(null);
+
+  useEffect(() => {
+    async function loadWork() {
+      const response = await fetch("/api/my-work");
+
+      if (response.ok) {
+        setWork((await response.json()) as RecordsResult);
+      }
+    }
+
+    void loadWork();
+  }, []);
+
   return (
     <Card>
       <CardHeader>
@@ -256,8 +280,8 @@ function MyWorkPanel({ user }: { user: User }) {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-3 md:grid-cols-3">
-          <MetricCard label="Pending Uploads" value={0} />
-          <MetricCard label="Saved Batches" value="View" />
+          <MetricCard label="My Batches" value={work?.summary.batches ?? 0} />
+          <MetricCard label="My Rows" value={work?.summary.rows ?? 0} />
           <MetricCard label="CSV Format" value="Ready" />
         </div>
         <div className="rounded-lg border p-4">
@@ -268,12 +292,39 @@ function MyWorkPanel({ user }: { user: User }) {
             <Button variant="outline">Download CSV Format</Button>
           </div>
         </div>
+        {work && <ReportTable reportType="My Uploaded Batches" rows={work.rows} />}
       </CardContent>
     </Card>
   );
 }
 
 function AllRecordsPanel() {
+  const [query, setQuery] = useState("");
+  const [store, setStore] = useState("");
+  const [records, setRecords] = useState<RecordsResult | null>(null);
+
+  async function searchRecords() {
+    const params = new URLSearchParams();
+
+    if (query) {
+      params.set("q", query);
+    }
+
+    if (store) {
+      params.set("store", store);
+    }
+
+    const response = await fetch(`/api/records?${params.toString()}`);
+
+    if (response.ok) {
+      setRecords((await response.json()) as RecordsResult);
+    }
+  }
+
+  useEffect(() => {
+    void searchRecords();
+  }, []);
+
   return (
     <Card>
       <CardHeader>
@@ -282,26 +333,16 @@ function AllRecordsPanel() {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
-          <Input placeholder="Search vendor, batch or invoice" />
-          <Input placeholder="Store code/name" />
-          <Button>Search</Button>
+          <Input placeholder="Search vendor, batch or store" value={query} onChange={(event) => setQuery(event.target.value)} />
+          <Input placeholder="Store code/name" value={store} onChange={(event) => setStore(event.target.value)} />
+          <Button onClick={searchRecords}>Search</Button>
         </div>
-        <div className="overflow-x-auto rounded-lg border">
-          <table className="w-full min-w-[720px] text-sm">
-            <thead>
-              <tr className="border-b text-left">
-                {["Batch", "Vendor", "Store", "Rows", "Date"].map((head) => (
-                  <th className="p-3" key={head}>{head}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td className="p-3 text-muted-foreground" colSpan={5}>Records will appear here after database query integration.</td>
-              </tr>
-            </tbody>
-          </table>
+        <div className="grid gap-3 md:grid-cols-3">
+          <MetricCard label="Batches" value={records?.summary.batches ?? 0} />
+          <MetricCard label="Rows" value={records?.summary.rows ?? 0} />
+          <MetricCard label="Today Uploads" value={records?.summary.todayUploads ?? 0} />
         </div>
+        {records && <ReportTable reportType="All Records" rows={records.rows} />}
       </CardContent>
     </Card>
   );
@@ -312,6 +353,20 @@ function UserReportsPanel() {
 }
 
 function AnalysisPanel() {
+  const [kpis, setKpis] = useState<RecordsResult["summary"] | null>(null);
+
+  useEffect(() => {
+    async function loadKpis() {
+      const response = await fetch("/api/dashboard-kpis");
+
+      if (response.ok) {
+        setKpis((await response.json()) as RecordsResult["summary"]);
+      }
+    }
+
+    void loadKpis();
+  }, []);
+
   return (
     <Card>
       <CardHeader>
@@ -320,9 +375,9 @@ function AnalysisPanel() {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-3 md:grid-cols-3">
-          <MetricCard label="Pending Balance" value="₹0" />
-          <MetricCard label="Credit Notes" value={0} />
-          <MetricCard label="Receipts" value={0} />
+          <MetricCard label="Pending Balance" value={formatMoney(kpis?.pendingBalance ?? 0)} />
+          <MetricCard label="Batches" value={kpis?.batches ?? 0} />
+          <MetricCard label="Ledger Rows" value={kpis?.rows ?? 0} />
         </div>
         <div className="rounded-lg border bg-muted/30 p-4 text-sm text-muted-foreground">
           Analysis charts will use saved ledger batches after report query APIs are added.
@@ -333,15 +388,40 @@ function AnalysisPanel() {
 }
 
 function NotificationsPanel() {
+  const [logs, setLogs] = useState<Array<Record<string, unknown>>>([]);
+
+  useEffect(() => {
+    async function loadNotifications() {
+      const response = await fetch("/api/notifications");
+
+      if (response.ok) {
+        const result = (await response.json()) as { logs: Array<Record<string, unknown>> };
+        setLogs(result.logs);
+      }
+    }
+
+    void loadNotifications();
+  }, []);
+
   return (
     <Card>
       <CardHeader>
         <CardTitle>Notifications</CardTitle>
         <CardDescription>Alerts for uploads, approvals and changes.</CardDescription>
       </CardHeader>
-      <CardContent>
-        <div className="rounded-lg border p-4 text-sm text-muted-foreground">
-          No notifications right now.
+      <CardContent className="space-y-3">
+        {logs.length === 0 && (
+          <div className="rounded-lg border p-4 text-sm text-muted-foreground">
+            No notifications right now.
+          </div>
+        )}
+        <div className="grid gap-2">
+          {logs.map((log) => (
+            <div className="rounded-lg border p-3 text-sm" key={String(log._id)}>
+              <p className="font-medium">{String(log.action ?? "Activity")}</p>
+              <p className="text-muted-foreground">{String(log.actor ?? "")} · {String(log.status ?? "")}</p>
+            </div>
+          ))}
         </div>
       </CardContent>
     </Card>
@@ -711,6 +791,9 @@ function ReportsPanel({ description, title }: { description: string; title: stri
   const [reportType, setReportType] = useState<(typeof reportTypes)[number]>("Vendor Report");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [vendorFilter, setVendorFilter] = useState("");
+  const [storeFilter, setStoreFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
   const [message, setMessage] = useState("");
   const [reportResult, setReportResult] = useState<ReportResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -727,6 +810,18 @@ function ReportsPanel({ description, title }: { description: string; title: stri
 
     if (dateTo) {
       params.set("to", dateTo);
+    }
+
+    if (vendorFilter) {
+      params.set("vendor", vendorFilter);
+    }
+
+    if (storeFilter) {
+      params.set("store", storeFilter);
+    }
+
+    if (statusFilter) {
+      params.set("status", statusFilter);
     }
 
     const response = await fetch(`/api/reports?${params.toString()}`);
@@ -780,7 +875,7 @@ function ReportsPanel({ description, title }: { description: string; title: stri
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="rounded-xl border bg-muted/20 p-4">
-          <div className="grid gap-3 md:grid-cols-[1fr_1fr_1fr_auto_auto]">
+          <div className="grid gap-3 md:grid-cols-3">
           <Select
             value={reportType}
             onValueChange={(value) => {
@@ -800,6 +895,20 @@ function ReportsPanel({ description, title }: { description: string; title: stri
           </Select>
           <Input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} />
           <Input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} />
+          <Input placeholder="Vendor filter" value={vendorFilter} onChange={(event) => setVendorFilter(event.target.value)} />
+          <Input placeholder="Store filter" value={storeFilter} onChange={(event) => setStoreFilter(event.target.value)} />
+          <Select value={statusFilter || "ALL"} onValueChange={(value) => setStatusFilter(value === "ALL" ? "" : value as string)}>
+            <SelectTrigger>
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              {["ALL", "PENDING", "PARTIAL", "COMPLETED", "DISPUTED"].map((status) => (
+                <SelectItem key={status} value={status}>{status}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
           <Button onClick={() => runReport()}>{isLoading ? "Running..." : "Run Report"}</Button>
           <Button variant="outline" onClick={exportCsv}>Export CSV</Button>
           </div>
@@ -1080,7 +1189,7 @@ type SidebarButtonProps = {
 function SidebarButton({ description, isActive, onClick, title }: SidebarButtonProps) {
   return (
     <button
-      className={`rounded-lg px-2 py-2 text-left transition hover:bg-muted ${
+      className={`w-full rounded-lg px-2 py-2 text-left transition hover:bg-muted ${
         isActive ? "bg-muted text-foreground" : "text-foreground"
       }`}
       onClick={onClick}

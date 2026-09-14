@@ -3,6 +3,7 @@ import { requireApiPermission } from '@/backend/auth/api-guard';
 import { writeAuditLog } from '@/backend/audit/audit-repository';
 import { validateLedgerPayload } from '@/backend/ledger';
 import { saveVendorLedger } from '@/backend/ledger-repository';
+import { canAccessStore } from '@/backend/records/record-repository';
 
 export async function POST(request: Request) {
   const guard = await requireApiPermission('ledger:create');
@@ -21,6 +22,10 @@ export async function POST(request: Request) {
 
   if (!validateLedgerPayload(payload)) {
     return NextResponse.json({ error: 'Invalid ledger payload' }, { status: 400 });
+  }
+
+  if (!canAccessStore(guard.session, payload.store_name)) {
+    return NextResponse.json({ error: 'You are not allowed to upload this store ledger' }, { status: 403 });
   }
 
   try {

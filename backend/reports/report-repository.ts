@@ -25,6 +25,9 @@ type ReportFilters = {
   dateFrom?: string;
   dateTo?: string;
   reportType: ReportType;
+  status?: string;
+  store?: string;
+  vendor?: string;
 };
 
 export async function generateReport(filters: ReportFilters, session: AuthSession): Promise<ReportResult> {
@@ -33,8 +36,13 @@ export async function generateReport(filters: ReportFilters, session: AuthSessio
   }
 
   const db = await getMongoDb();
-  const storeMatch = getStoreMatch(session);
+  const storeMatch = {
+    ...getStoreMatch(session),
+    ...(filters.store ? { store_name: filters.store } : {}),
+    ...(filters.vendor ? { vendor_name: filters.vendor } : {}),
+  };
   const dateMatch = getDateMatch(filters.dateFrom, filters.dateTo);
+  const statusMatch = filters.status ? { "ledgers.status": filters.status } : null;
 
   if (filters.reportType === "Upload Batch") {
     const rows = await db
@@ -65,6 +73,7 @@ export async function generateReport(filters: ReportFilters, session: AuthSessio
     { $match: storeMatch },
     { $unwind: "$ledgers" },
     ...(dateMatch ? [{ $match: dateMatch }] : []),
+    ...(statusMatch ? [{ $match: statusMatch }] : []),
   ];
 
   const rows = await db
