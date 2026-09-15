@@ -6,6 +6,7 @@ import type { AppModule } from "@/backend/auth/modules";
 import { rolePermissions, roles } from "@/backend/auth/seed";
 import { stores, vendors } from "@/backend/masters/master-data";
 import type { PermissionCode, RoleCode, User } from "@/backend/auth/types";
+import type { Ledger } from "@/backend/ledger";
 import { UsersAdminPanel } from "@/components/admin/users-admin-panel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -50,6 +51,16 @@ type RecordsResult = {
     rows: number;
     todayUploads: number;
   };
+};
+
+type LedgerBatchDetail = {
+  batch: string;
+  createdAt: string;
+  dateFrom: string;
+  dateTo: string;
+  ledgers: Ledger[];
+  store: string;
+  vendor: string;
 };
 
 const reportTypes = ["Vendor Report", "Store Report", "Date Range Report", "Pending Balance", "Upload Batch", "Credit Notes"] as const;
@@ -302,6 +313,8 @@ function AllRecordsPanel() {
   const [query, setQuery] = useState("");
   const [store, setStore] = useState("");
   const [records, setRecords] = useState<RecordsResult | null>(null);
+  const [selectedBatch, setSelectedBatch] = useState<LedgerBatchDetail | null>(null);
+  const [detailMessage, setDetailMessage] = useState("");
 
   async function searchRecords() {
     const params = new URLSearchParams();
@@ -318,7 +331,108 @@ function AllRecordsPanel() {
 
     if (response.ok) {
       setRecords((await response.json()) as RecordsResult);
+      setSelectedBatch(null);
+      setDetailMessage("");
     }
+  }
+
+  async function openBatch(row: ReportRow) {
+    const batch = String(row.batch ?? "");
+
+    if (!batch) {
+      return;
+    }
+
+    setDetailMessage("Loading related entries...");
+    const response = await fetch(`/api/records/${encodeURIComponent(batch)}`);
+
+    if (!response.ok) {
+      setDetailMessage("Unable to load related entries");
+      return;
+    }
+
+    setSelectedBatch((await response.json()) as LedgerBatchDetail);
+    setDetailMessage("");
+  }
+
+  async function saveLedgerEntry(ledger: Ledger) {
+    if (!selectedBatch) {
+      return;
+    }
+
+    const validationError = validateLedgerEntry(ledger);
+    if (validationError) {
+      setDetailMessage(validationError);
+      return;
+    }
+
+    setDetailMessage("Saving changes...");
+    const response = await fetch(`/api/records/${encodeURIComponent(selectedBatch.batch)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...ledger, ledgerId: ledger.id }),
+    });
+
+    if (!response.ok) {
+      setDetailMessage("Unable to save changes");
+      return;
+    }
+
+    setSelectedBatch((await response.json()) as LedgerBatchDetail);
+    setDetailMessage("Changes saved");
+  }
+
+  async function saveAllLedgerEntries() {
+    if (!selectedBatch) {
+      return;
+    }
+
+    const validationError = selectedBatch.ledgers.map(validateLedgerEntry).find(Boolean);
+    if (validationError) {
+      setDetailMessage(validationError);
+      return;
+    }
+
+    setDetailMessage("Saving all changes...");
+
+    for (const ledger of selectedBatch.ledgers) {
+      const response = await fetch(`/api/records/${encodeURIComponent(selectedBatch.batch)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...ledger, ledgerId: ledger.id }),
+      });
+
+      if (!response.ok) {
+        setDetailMessage(`Unable to save invoice ${ledger.invoice_no}`);
+        return;
+      }
+    }
+
+    const response = await fetch(`/api/records/${encodeURIComponent(selectedBatch.batch)}`);
+    if (response.ok) {
+      setSelectedBatch((await response.json()) as LedgerBatchDetail);
+    }
+    setDetailMessage("All changes saved");
+  }
+
+  function updateLedgerDraft(ledgerId: number, field: keyof Ledger, value: string) {
+    setSelectedBatch((current) => {
+      if (!current) {
+        return current;
+      }
+
+      return {
+        ...current,
+        ledgers: current.ledgers.map((ledger) =>
+          ledger.id === ledgerId
+            ? {
+                ...ledger,
+                [field]: ["credit", "debit", "pending_balance"].includes(field) ? Number(value) : value,
+              }
+            : ledger,
+        ),
+      };
+    });
   }
 
   useEffect(() => {
@@ -342,7 +456,11 @@ function AllRecordsPanel() {
           <MetricCard label="Rows" value={records?.summary.rows ?? 0} />
           <MetricCard label="Today Uploads" value={records?.summary.todayUploads ?? 0} />
         </div>
-        {records && <ReportTable reportType="All Records" rows={records.rows} />}
+        {records && <ReportTable onRowClick={openBatch} reportType="All Records" rows={records.rows} />}
+        {detailMessage && <p className="rounded-lg border bg-muted/40 p-3 text-sm text-muted-foreground">{detailMessage}</p>}
+        {selectedBatch && (
+          <LedgerEntriesPanel batch={selectedBatch} onSave={saveLedgerEntry} onSaveAll={saveAllLedgerEntries} onUpdate={updateLedgerDraft} />
+        )}
       </CardContent>
     </Card>
   );
@@ -354,6 +472,16 @@ function UserReportsPanel() {
 
 function AnalysisPanel() {
   const [kpis, setKpis] = useState<RecordsResult["summary"] | null>(null);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [vendorFilter, setVendorFilter] = useState("");
+  const [storeFilter, setStoreFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [vendorAnalysis, setVendorAnalysis] = useState<ReportResult | null>(null);
+  const [storeAnalysis, setStoreAnalysis] = useState<ReportResult | null>(null);
+  const [pendingAnalysis, setPendingAnalysis] = useState<ReportResult | null>(null);
+  const [message, setMessage] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     async function loadKpis() {
@@ -365,22 +493,119 @@ function AnalysisPanel() {
     }
 
     void loadKpis();
+    void runAnalysis();
   }, []);
+
+  async function fetchAnalysis(type: (typeof reportTypes)[number]) {
+    const params = new URLSearchParams({ type });
+
+    if (dateFrom) {
+      params.set("from", dateFrom);
+    }
+
+    if (dateTo) {
+      params.set("to", dateTo);
+    }
+
+    if (vendorFilter) {
+      params.set("vendor", vendorFilter);
+    }
+
+    if (storeFilter) {
+      params.set("store", storeFilter);
+    }
+
+    if (statusFilter) {
+      params.set("status", statusFilter);
+    }
+
+    const response = await fetch(`/api/reports?${params.toString()}`);
+
+    if (!response.ok) {
+      throw new Error(`Unable to generate ${type}`);
+    }
+
+    return (await response.json()) as ReportResult;
+  }
+
+  async function runAnalysis() {
+    setIsLoading(true);
+    setMessage("");
+
+    try {
+      const [vendorResult, storeResult, pendingResult] = await Promise.all([
+        fetchAnalysis("Vendor Report"),
+        fetchAnalysis("Store Report"),
+        fetchAnalysis("Pending Balance"),
+      ]);
+      setVendorAnalysis(vendorResult);
+      setStoreAnalysis(storeResult);
+      setPendingAnalysis(pendingResult);
+      setMessage("Analysis generated from MongoDB");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to generate analysis");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  function resetAnalysisFilters() {
+    setDateFrom("");
+    setDateTo("");
+    setVendorFilter("");
+    setStoreFilter("");
+    setStatusFilter("");
+    setMessage("Filters cleared. Run analysis again.");
+  }
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>Analysis</CardTitle>
-        <CardDescription>Pending balance and transaction trend overview.</CardDescription>
+        <CardDescription>MongoDB based KPI cards, charts and searchable ledger reports.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-5">
           <MetricCard label="Pending Balance" value={formatMoney(kpis?.pendingBalance ?? 0)} />
           <MetricCard label="Batches" value={kpis?.batches ?? 0} />
           <MetricCard label="Ledger Rows" value={kpis?.rows ?? 0} />
+          <MetricCard label="Vendor Rows" value={vendorAnalysis?.summary.rows ?? 0} />
+          <MetricCard label="Today Uploads" value={kpis?.todayUploads ?? 0} />
         </div>
-        <div className="rounded-lg border bg-muted/30 p-4 text-sm text-muted-foreground">
-          Analysis charts will use saved ledger batches after report query APIs are added.
+
+        <div className="rounded-xl border bg-muted/20 p-4">
+          <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+            <Input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} />
+            <Input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} />
+            <Input placeholder="Vendor search" value={vendorFilter} onChange={(event) => setVendorFilter(event.target.value)} />
+            <Input placeholder="Store search" value={storeFilter} onChange={(event) => setStoreFilter(event.target.value)} />
+            <Select value={statusFilter || "ALL"} onValueChange={(value) => setStatusFilter(value === "ALL" ? "" : value ?? "")}>
+              <SelectTrigger>
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                {["ALL", "PENDING", "PARTIAL", "COMPLETED", "DISPUTED"].map((status) => (
+                  <SelectItem key={status} value={status}>{status}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="flex gap-2">
+              <Button className="flex-1" onClick={runAnalysis}>{isLoading ? "Running..." : "Run"}</Button>
+              <Button variant="outline" onClick={resetAnalysisFilters}>Clear</Button>
+            </div>
+          </div>
+        </div>
+
+        {message && <p className="rounded-lg border bg-muted/40 p-3 text-sm text-muted-foreground">{message}</p>}
+
+        <div className="grid gap-4 xl:grid-cols-2">
+          <AnalysisChart title="Top Vendors by Pending" labelKey="vendor" rows={vendorAnalysis?.rows ?? []} />
+          <AnalysisChart title="Store Pending Summary" labelKey="store" rows={storeAnalysis?.rows ?? []} />
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-2">
+          {vendorAnalysis && <ReportTable reportType="Vendor Analysis" rows={vendorAnalysis.rows.slice(0, 10)} />}
+          {pendingAnalysis && <ReportTable reportType="Pending Invoice Analysis" rows={pendingAnalysis.rows.slice(0, 10)} />}
         </div>
       </CardContent>
     </Card>
@@ -946,7 +1171,134 @@ function ReportTypeCard({ title }: { title: (typeof reportTypes)[number] }) {
   );
 }
 
-function ReportTable({ reportType, rows }: { reportType: string; rows: ReportRow[] }) {
+function LedgerEntriesPanel({
+  batch,
+  onSave,
+  onSaveAll,
+  onUpdate,
+}: {
+  batch: LedgerBatchDetail;
+  onSave: (ledger: Ledger) => void;
+  onSaveAll: () => void;
+  onUpdate: (ledgerId: number, field: keyof Ledger, value: string) => void;
+}) {
+  const summary = getLedgerSummary(batch.ledgers);
+
+  return (
+    <div className="overflow-hidden rounded-xl border">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b bg-muted/30 p-4">
+        <div>
+          <h3 className="font-medium">Related Ledger Entries</h3>
+          <p className="text-sm text-muted-foreground">
+            {batch.vendor} · {batch.store} · {batch.batch}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" onClick={() => exportLedgerEntries(batch)}>Export Batch CSV</Button>
+          <Button size="sm" onClick={onSaveAll}>Save All Changes</Button>
+        </div>
+      </div>
+      <div className="grid gap-3 border-b p-4 md:grid-cols-5">
+        <MetricCard label="Entries" value={batch.ledgers.length} />
+        <MetricCard label="Pending" value={summary.pending} />
+        <MetricCard label="Partial" value={summary.partial} />
+        <MetricCard label="Completed" value={summary.completed} />
+        <MetricCard label="Pending Amount" value={formatMoney(summary.pendingAmount)} />
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[980px] text-sm">
+          <thead className="bg-muted/40">
+            <tr className="border-b text-left">
+              {["Invoice", "Date", "Type", "Debit", "Credit", "Pending", "Status", "Action"].map((head) => (
+                <th className="p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground" key={head}>{head}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {batch.ledgers.map((ledger) => (
+              <tr className="border-b" key={ledger.id}>
+                <td className="p-2">
+                  <Input value={ledger.invoice_no} onChange={(event) => onUpdate(ledger.id, "invoice_no", event.target.value)} />
+                </td>
+                <td className="p-2">
+                  <Input type="date" value={ledger.invoice_date} onChange={(event) => onUpdate(ledger.id, "invoice_date", event.target.value)} />
+                </td>
+                <td className="p-2">
+                  <Input value={ledger.vch_type} onChange={(event) => onUpdate(ledger.id, "vch_type", event.target.value)} />
+                </td>
+                <td className="p-2">
+                  <Input type="number" value={ledger.debit} onChange={(event) => onUpdate(ledger.id, "debit", event.target.value)} />
+                </td>
+                <td className="p-2">
+                  <Input type="number" value={ledger.credit} onChange={(event) => onUpdate(ledger.id, "credit", event.target.value)} />
+                </td>
+                <td className="p-2">
+                  <Input type="number" value={ledger.pending_balance} onChange={(event) => onUpdate(ledger.id, "pending_balance", event.target.value)} />
+                </td>
+                <td className="p-2">
+                  <Select value={ledger.status || "PENDING"} onValueChange={(value) => onUpdate(ledger.id, "status", value ?? "PENDING")}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {["PENDING", "PARTIAL", "COMPLETED", "DISPUTED"].map((status) => (
+                        <SelectItem key={status} value={status}>{status}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </td>
+                <td className="p-2">
+                  <Button size="sm" onClick={() => onSave(ledger)}>Save</Button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function AnalysisChart({ labelKey, rows, title }: { labelKey: string; rows: ReportRow[]; title: string }) {
+  const chartRows = rows.slice(0, 8);
+  const maxValue = Math.max(...chartRows.map((row) => toReportNumber(row.pendingBalance)), 1);
+
+  return (
+    <div className="rounded-xl border p-4">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div>
+          <h3 className="font-medium">{title}</h3>
+          <p className="text-sm text-muted-foreground">{chartRows.length} rows from generated report</p>
+        </div>
+        <span className="rounded-md bg-muted px-2 py-1 text-xs">Chart</span>
+      </div>
+      {chartRows.length === 0 ? (
+        <p className="rounded-lg bg-muted/30 p-4 text-sm text-muted-foreground">Run analysis to show chart data.</p>
+      ) : (
+        <div className="grid gap-3">
+          {chartRows.map((row, index) => {
+            const value = toReportNumber(row.pendingBalance);
+            const width = Math.max((value / maxValue) * 100, 4);
+
+            return (
+              <div className="grid gap-1" key={`${String(row[labelKey] ?? index)}-${index}`}>
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span className="truncate font-medium">{String(row[labelKey] ?? "Unknown")}</span>
+                  <span className="text-muted-foreground">{formatMoney(value)}</span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-muted">
+                  <div className="h-full rounded-full bg-primary" style={{ width: `${width}%` }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ReportTable({ onRowClick, reportType, rows }: { onRowClick?: (row: ReportRow) => void; reportType: string; rows: ReportRow[] }) {
   const columns = Array.from(new Set(rows.flatMap((row) => Object.keys(row))));
 
   if (rows.length === 0) {
@@ -972,9 +1324,21 @@ function ReportTable({ reportType, rows }: { reportType: string; rows: ReportRow
         </thead>
         <tbody>
           {rows.map((row, index) => (
-            <tr className="border-b transition-colors hover:bg-muted/30" key={index}>
+            <tr
+              className={`border-b transition-colors hover:bg-muted/30 ${onRowClick ? "cursor-pointer" : ""}`}
+              key={index}
+              onClick={() => onRowClick?.(row)}
+            >
               {columns.map((column) => (
-                <td className="p-3" key={column}>{formatReportValue(row[column])}</td>
+                <td className="p-3" key={column}>
+                  {column === "batch" && onRowClick ? (
+                    <button className="font-medium text-primary underline-offset-4 hover:underline" type="button">
+                      {formatReportValue(row[column])}
+                    </button>
+                  ) : (
+                    formatReportValue(row[column])
+                  )}
+                </td>
               ))}
             </tr>
           ))}
@@ -1173,6 +1537,66 @@ function formatMoney(value: number) {
 
 function formatReportValue(value: number | string | undefined) {
   return typeof value === "number" ? formatMoney(value) : value ?? "";
+}
+
+function toReportNumber(value: number | string | undefined) {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  const parsed = Number(String(value ?? "0").replaceAll(",", ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function validateLedgerEntry(ledger: Ledger) {
+  if (!ledger.invoice_no.trim()) {
+    return "Invoice number is required";
+  }
+
+  if (!ledger.invoice_date.trim()) {
+    return `Invoice date is required for ${ledger.invoice_no}`;
+  }
+
+  if (ledger.debit < 0 || ledger.credit < 0 || ledger.pending_balance < 0) {
+    return `Amount cannot be negative for ${ledger.invoice_no}`;
+  }
+
+  return "";
+}
+
+function getLedgerSummary(ledgers: Ledger[]) {
+  return ledgers.reduce(
+    (summary, ledger) => {
+      const status = ledger.status.toUpperCase();
+
+      return {
+        completed: summary.completed + (status === "COMPLETED" ? 1 : 0),
+        partial: summary.partial + (status === "PARTIAL" ? 1 : 0),
+        pending: summary.pending + (status === "PENDING" ? 1 : 0),
+        pendingAmount: summary.pendingAmount + ledger.pending_balance,
+      };
+    },
+    { completed: 0, partial: 0, pending: 0, pendingAmount: 0 },
+  );
+}
+
+function exportLedgerEntries(batch: LedgerBatchDetail) {
+  const columns: Array<keyof Ledger> = ["invoice_no", "invoice_date", "vch_type", "debit", "credit", "pending_balance", "status"];
+  const csvRows = [
+    ["batch", "vendor", "store", ...columns].join(","),
+    ...batch.ledgers.map((ledger) =>
+      [batch.batch, batch.vendor, batch.store, ...columns.map((column) => ledger[column])]
+        .map((value) => `"${String(value ?? "").replaceAll('"', '""')}"`)
+        .join(","),
+    ),
+  ];
+  const blob = new Blob([csvRows.join("\n")], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `${batch.batch}.csv`;
+  anchor.click();
+  URL.revokeObjectURL(url);
 }
 
 function toTitle(value: string) {

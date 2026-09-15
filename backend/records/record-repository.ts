@@ -1,5 +1,6 @@
 import { getMongoDb, isMongoConfigured } from "@/backend/database/mongodb";
 import type { AuthSession } from "@/backend/auth/types";
+import type { Ledger } from "@/backend/ledger";
 import type { ReportRow } from "@/backend/reports/report-repository";
 
 export type RecordsResult = {
@@ -11,6 +12,18 @@ export type RecordsResult = {
     todayUploads: number;
   };
 };
+
+export type LedgerBatchDetail = {
+  batch: string;
+  createdAt: string;
+  dateFrom: string;
+  dateTo: string;
+  ledgers: Ledger[];
+  store: string;
+  vendor: string;
+};
+
+export type LedgerEntryUpdate = Pick<Ledger, "credit" | "debit" | "invoice_date" | "invoice_no" | "pending_balance" | "status" | "vch_type">;
 
 type RecordFilters = {
   query?: string;
@@ -103,6 +116,70 @@ export async function listMyBatches(session: AuthSession): Promise<RecordsResult
       todayUploads: rows.filter((row) => String(row.createdAt ?? "").startsWith(new Date().toISOString().slice(0, 10))).length,
     },
   };
+}
+
+export async function getRecordDetail(batchNumber: string, session: AuthSession): Promise<LedgerBatchDetail | null> {
+  if (!isMongoConfigured()) {
+    return null;
+  }
+
+  const db = await getMongoDb();
+  const record = await db.collection("vendor_ledgers").findOne<{
+    batch_number: string;
+    created_at: Date | string;
+    date_from: string;
+    date_to: string;
+    ledgers: Ledger[];
+    store_name: string;
+    vendor_name: string;
+  }>({ ...getStoreMatch(session), batch_number: batchNumber });
+
+  if (!record) {
+    return null;
+  }
+
+  return {
+    batch: record.batch_number,
+    createdAt: String(record.created_at),
+    dateFrom: record.date_from,
+    dateTo: record.date_to,
+    ledgers: record.ledgers,
+    store: record.store_name,
+    vendor: record.vendor_name,
+  };
+}
+
+export async function updateLedgerEntry(batchNumber: string, ledgerId: number, entry: LedgerEntryUpdate, session: AuthSession) {
+  if (!isMongoConfigured()) {
+    throw new Error("MONGODB_URI is not configured");
+  }
+
+  const db = await getMongoDb();
+  const record = await db.collection("vendor_ledgers").findOne<{ ledgers: Ledger[]; store_name: string }>({
+    ...getStoreMatch(session),
+    batch_number: batchNumber,
+  });
+
+  if (!record) {
+    return null;
+  }
+
+  if (!canAccessStore(session, record.store_name)) {
+    return null;
+  }
+
+  const ledgers = record.ledgers.map((ledger) => (ledger.id === ledgerId ? { ...ledger, ...entry } : ledger));
+  const result = await db.collection("vendor_ledgers").updateOne(
+    { ...getStoreMatch(session), batch_number: batchNumber },
+    {
+      $set: {
+        ledgers,
+        updated_at: new Date(),
+      },
+    },
+  );
+
+  return result.matchedCount > 0;
 }
 
 export async function getDashboardKpis(session: AuthSession) {
