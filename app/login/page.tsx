@@ -1,14 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { LockKeyhole, LogIn, Mail, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function LoginPage() {
-  const router = useRouter();
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -18,27 +16,33 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
 
   async function login() {
+    if (isLoading) {
+      return;
+    }
+
     setIsLoading(true);
     setMessage("");
 
     const response = await fetch("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
     });
 
-    setIsLoading(false);
-
     if (!response.ok) {
+      setIsLoading(false);
       setMessage("Invalid email or password");
       return;
     }
 
-    router.push("/dashboard");
-    router.refresh();
+    window.location.assign("/dashboard");
   }
 
   async function signup() {
+    if (isLoading) {
+      return;
+    }
+
     if (password !== confirmPassword) {
       setMessage("Confirm password does not match");
       return;
@@ -50,7 +54,7 @@ export default function LoginPage() {
     const response = await fetch("/api/auth/signup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fullName, email, password, confirmPassword }),
+      body: JSON.stringify({ fullName, email: email.trim().toLowerCase(), password, confirmPassword }),
     });
 
     setIsLoading(false);
@@ -86,10 +90,10 @@ export default function LoginPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-2 rounded-lg bg-muted p-1">
-              <Button variant={mode === "login" ? "default" : "ghost"} onClick={() => setMode("login")}>
+              <Button type="button" variant={mode === "login" ? "default" : "ghost"} onClick={() => setMode("login")}>
                 Login
               </Button>
-              <Button variant={mode === "signup" ? "default" : "ghost"} onClick={() => setMode("signup")}>
+              <Button type="button" variant={mode === "signup" ? "default" : "ghost"} onClick={() => setMode("signup")}>
                 New User
               </Button>
             </div>
@@ -130,7 +134,7 @@ export default function LoginPage() {
               </label>
             )}
 
-            <Button className="w-full" disabled={isLoading} onClick={mode === "login" ? login : signup}>
+            <Button className="w-full" disabled={isLoading} type="button" onClick={mode === "login" ? login : signup}>
               {mode === "login" ? <LogIn className="size-4" /> : <UserPlus className="size-4" />}
               {isLoading ? "Checking..." : mode === "login" ? "Login" : "Create user"}
             </Button>
