@@ -1,6 +1,6 @@
 import { randomBytes, scrypt as scryptCallback, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
-import { getUserByEmail, getUserPasswordHash } from "./user-repository";
+import { getUserAuthByEmail } from "./user-repository";
 
 const scrypt = promisify(scryptCallback);
 
@@ -11,9 +11,9 @@ export async function hashPassword(password: string) {
 }
 
 export async function verifyPassword(email: string, password: string) {
-  const user = await getUserByEmail(email);
+  const authUser = await getUserAuthByEmail(email);
 
-  if (!user) {
+  if (!authUser) {
     return null;
   }
 
@@ -22,14 +22,12 @@ export async function verifyPassword(email: string, password: string) {
   const isDemoAdminLogin = email.toLowerCase() === demoEmail.toLowerCase() && password === demoPassword;
 
   if (isDemoAdminLogin) {
-    return user;
+    return authUser.user;
   }
 
-  const passwordHash = await getUserPasswordHash(email);
-
-  if (passwordHash) {
-    const isValid = await comparePassword(password, passwordHash);
-    return isValid ? user : null;
+  if (authUser.passwordHash) {
+    const isValid = await comparePassword(password, authUser.passwordHash);
+    return isValid ? authUser.user : null;
   }
 
   return null;

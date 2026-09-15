@@ -42,6 +42,32 @@ export async function getUserByEmail(email: string): Promise<User | null> {
   };
 }
 
+export async function getUserAuthByEmail(email: string): Promise<{ passwordHash: string | null; user: User } | null> {
+  if (!isMongoConfigured()) {
+    const user = getSeedUserByEmail(email);
+    return user ? { passwordHash: null, user } : null;
+  }
+
+  const db = await getMongoDb();
+  const user = await db.collection<UserDocument>("users").findOne({ email: email.toLowerCase() });
+
+  if (!user?.email || !user.roleCode || !user.status) {
+    return null;
+  }
+
+  return {
+    passwordHash: user.passwordHash ?? null,
+    user: {
+      assignedStores: normalizeAssignedStores(user.roleCode, user.assignedStores),
+      id: user.id ?? String(user._id ?? user.email),
+      name: user.name ?? user.email,
+      email: user.email,
+      roleCode: user.roleCode,
+      status: normalizeStatus(user.status),
+    },
+  };
+}
+
 export async function ensureDemoAdminUser() {
   if (!isMongoConfigured()) {
     return getSeedUserByEmail(process.env.AUTH_DEMO_EMAIL ?? "admin@example.com");

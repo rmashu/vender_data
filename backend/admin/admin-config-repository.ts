@@ -8,12 +8,23 @@ export type AdminSettings = {
   csvOnlyUpload: boolean;
 };
 
+type AdminConfig = {
+  roles: Role[];
+  rolePermissions: Record<RoleCode, PermissionCode[]>;
+  vendors: string[];
+  stores: string[];
+  settings: AdminSettings;
+};
+
 const defaultSettings: AdminSettings = {
   approvalRequired: true,
   csvOnlyUpload: true,
 };
 
-export async function getAdminConfig() {
+let cachedConfig: { expiresAt: number; value: AdminConfig } | null = null;
+const cacheTtlMs = 30_000;
+
+export async function getAdminConfig(): Promise<AdminConfig> {
   if (!isMongoConfigured()) {
     return {
       roles: defaultRoles,
@@ -24,16 +35,23 @@ export async function getAdminConfig() {
     };
   }
 
+  if (cachedConfig && cachedConfig.expiresAt > Date.now()) {
+    return cachedConfig.value;
+  }
+
   const db = await getMongoDb();
   const config = await db.collection("admin_config").findOne({ key: "main" });
 
-  return {
+  const value = {
     roles: (config?.roles as Role[] | undefined) ?? defaultRoles,
     rolePermissions: (config?.rolePermissions as Record<RoleCode, PermissionCode[]> | undefined) ?? defaultRolePermissions,
     vendors: (config?.vendors as string[] | undefined) ?? Array.from(defaultVendors),
     stores: (config?.stores as string[] | undefined) ?? Array.from(new Set(defaultStores)),
     settings: (config?.settings as AdminSettings | undefined) ?? defaultSettings,
   };
+
+  cachedConfig = { expiresAt: Date.now() + cacheTtlMs, value };
+  return value;
 }
 
 export async function saveRoles(roles: Role[]) {
@@ -75,4 +93,5 @@ async function updateAdminConfig(update: Record<string, unknown>) {
     },
     { upsert: true },
   );
+  cachedConfig = null;
 }
