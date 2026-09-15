@@ -8,10 +8,12 @@ import { stores, vendors } from "@/backend/masters/master-data";
 import type { PermissionCode, RoleCode, User } from "@/backend/auth/types";
 import type { Ledger } from "@/backend/ledger";
 import { UsersAdminPanel } from "@/components/admin/users-admin-panel";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 type DashboardWorkspaceProps = {
   adminModules: AppModule[];
@@ -1206,36 +1208,36 @@ function LedgerEntriesPanel({
         <MetricCard label="Pending Amount" value={formatMoney(summary.pendingAmount)} />
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[980px] text-sm">
-          <thead className="bg-muted/40">
-            <tr className="border-b text-left">
+        <Table className="min-w-[980px]">
+          <TableHeader className="bg-muted/40">
+            <TableRow>
               {["Invoice", "Date", "Type", "Debit", "Credit", "Pending", "Status", "Action"].map((head) => (
-                <th className="p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground" key={head}>{head}</th>
+                <TableHead className="p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground" key={head}>{head}</TableHead>
               ))}
-            </tr>
-          </thead>
-          <tbody>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {batch.ledgers.map((ledger) => (
-              <tr className="border-b" key={ledger.id}>
-                <td className="p-2">
+              <TableRow key={ledger.id}>
+                <TableCell className="p-2">
                   <Input value={ledger.invoice_no} onChange={(event) => onUpdate(ledger.id, "invoice_no", event.target.value)} />
-                </td>
-                <td className="p-2">
+                </TableCell>
+                <TableCell className="p-2">
                   <Input type="date" value={ledger.invoice_date} onChange={(event) => onUpdate(ledger.id, "invoice_date", event.target.value)} />
-                </td>
-                <td className="p-2">
+                </TableCell>
+                <TableCell className="p-2">
                   <Input value={ledger.vch_type} onChange={(event) => onUpdate(ledger.id, "vch_type", event.target.value)} />
-                </td>
-                <td className="p-2">
+                </TableCell>
+                <TableCell className="p-2">
                   <Input type="number" value={ledger.debit} onChange={(event) => onUpdate(ledger.id, "debit", event.target.value)} />
-                </td>
-                <td className="p-2">
+                </TableCell>
+                <TableCell className="p-2">
                   <Input type="number" value={ledger.credit} onChange={(event) => onUpdate(ledger.id, "credit", event.target.value)} />
-                </td>
-                <td className="p-2">
+                </TableCell>
+                <TableCell className="p-2">
                   <Input type="number" value={ledger.pending_balance} onChange={(event) => onUpdate(ledger.id, "pending_balance", event.target.value)} />
-                </td>
-                <td className="p-2">
+                </TableCell>
+                <TableCell className="p-2">
                   <Select value={ledger.status || "PENDING"} onValueChange={(value) => onUpdate(ledger.id, "status", value ?? "PENDING")}>
                     <SelectTrigger>
                       <SelectValue placeholder="Status" />
@@ -1246,14 +1248,14 @@ function LedgerEntriesPanel({
                       ))}
                     </SelectContent>
                   </Select>
-                </td>
-                <td className="p-2">
+                </TableCell>
+                <TableCell className="p-2">
                   <Button size="sm" onClick={() => onSave(ledger)}>Save</Button>
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
     </div>
   );
@@ -1314,39 +1316,46 @@ function ReportTable({ onRowClick, reportType, rows }: { onRowClick?: (row: Repo
         </div>
       </div>
       <div className="overflow-x-auto">
-      <table className="w-full min-w-[860px] text-sm">
-        <thead className="bg-muted/40">
-          <tr className="border-b text-left">
+      <Table className="min-w-[860px]">
+        <TableHeader className="bg-muted/40">
+          <TableRow>
             {columns.map((column) => (
-              <th className="p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground" key={column}>{toTitle(column)}</th>
+              <TableHead className="p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground" key={column}>{toTitle(column)}</TableHead>
             ))}
-          </tr>
-        </thead>
-        <tbody>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {rows.map((row, index) => (
-            <tr
+            <TableRow
               className={`border-b transition-colors hover:bg-muted/30 ${onRowClick ? "cursor-pointer" : ""}`}
               key={index}
               onClick={() => onRowClick?.(row)}
             >
               {columns.map((column) => (
-                <td className="p-3" key={column}>
+                <TableCell className="p-3" key={column}>
                   {column === "batch" && onRowClick ? (
                     <button className="font-medium text-primary underline-offset-4 hover:underline" type="button">
                       {formatReportValue(row[column])}
                     </button>
                   ) : (
-                    formatReportValue(row[column])
+                    column.toLowerCase().includes("status") ? <StatusBadge value={String(row[column] ?? "")} /> : formatReportValue(row[column])
                   )}
-                </td>
+                </TableCell>
               ))}
-            </tr>
+            </TableRow>
           ))}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
       </div>
     </div>
   );
+}
+
+function StatusBadge({ value }: { value: string }) {
+  const normalized = value.toUpperCase();
+  const variant = normalized === "PENDING" || normalized === "DISPUTED" ? "destructive" : normalized === "PARTIAL" ? "outline" : "secondary";
+
+  return <Badge variant={variant}>{value || "N/A"}</Badge>;
 }
 
 function AuditLogsPanel() {
