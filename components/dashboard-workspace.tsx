@@ -728,6 +728,7 @@ function PurchaseMasterPanel() {
   const [masterRows, setMasterRows] = useState<PurchaseMasterRow[]>([]);
   const [message, setMessage] = useState("");
   const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [hasSearched, setHasSearched] = useState(false);
   const fyOptions = Array.from(new Set(masterRows.map((row) => row.fy))).filter(Boolean);
   const storeOptions = Array.from(new Set(masterRows.filter((row) => !fy || row.fy === fy).map((row) => row.store_name))).filter(Boolean);
   const supplierOptions = Array.from(
@@ -735,6 +736,7 @@ function PurchaseMasterPanel() {
   ).filter(Boolean);
 
   async function loadRows() {
+    setHasSearched(true);
     const params = new URLSearchParams();
 
     if (fy) params.set("fy", fy);
@@ -853,7 +855,6 @@ function PurchaseMasterPanel() {
 
   useEffect(() => {
     void loadMasterOptions();
-    void loadRows();
   }, []);
 
   return (
@@ -924,7 +925,12 @@ function PurchaseMasterPanel() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.length === 0 && (
+              {!hasSearched && (
+                <TableRow>
+                  <TableCell className="text-muted-foreground" colSpan={5}>Select filters and click Show Data.</TableCell>
+                </TableRow>
+              )}
+              {hasSearched && rows.length === 0 && (
                 <TableRow>
                   <TableCell className="text-muted-foreground" colSpan={5}>No purchase master data found.</TableCell>
                 </TableRow>
