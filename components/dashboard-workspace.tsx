@@ -65,6 +65,15 @@ type LedgerBatchDetail = {
   vendor: string;
 };
 
+type PurchaseMasterRow = {
+  id: string;
+  fy: string;
+  gst_no: string;
+  status: "ACTIVE" | "INACTIVE";
+  store_name: string;
+  supplier: string;
+};
+
 const reportTypes = ["Vendor Report", "Store Report", "Date Range Report", "Pending Balance", "Upload Batch", "Credit Notes"] as const;
 const reportDescriptions: Record<(typeof reportTypes)[number], string> = {
   "Credit Notes": "Credit note and credit transaction listing",
@@ -79,11 +88,24 @@ export function DashboardWorkspace({ adminModules, dashboardModules, permissions
   const workItems = useMemo(() => dashboardModules.map((module) => toWorkspaceItem(module, "work")), [dashboardModules]);
   const adminItems = useMemo(() => adminModules.map((module) => toWorkspaceItem(module, "admin")), [adminModules]);
   const items = useMemo(() => [...workItems, ...adminItems], [adminItems, workItems]);
+  const purchaseItems = useMemo(
+    () =>
+      permissions.includes("masters:manage")
+        ? [
+            toWorkspaceItem(
+              { title: "Purchase Master", description: "FY, store, supplier and GST mapping", href: "/purchase-master", permission: "masters:manage" },
+              "purchase",
+            ),
+          ]
+        : [],
+    [permissions],
+  );
   const workMenuItems = useMemo(() => workItems.filter((item) => item.module.title !== "Reports"), [workItems]);
   const reportMenuItems = useMemo(() => items.filter((item) => item.module.title === "Reports"), [items]);
   const adminMenuItems = useMemo(() => adminItems.filter((item) => item.module.title !== "Reports"), [adminItems]);
-  const [selectedKey, setSelectedKey] = useState(items[0]?.key ?? "overview");
-  const selectedItem = items.find((item) => item.key === selectedKey);
+  const allItems = useMemo(() => [...items, ...purchaseItems], [items, purchaseItems]);
+  const [selectedKey, setSelectedKey] = useState(allItems[0]?.key ?? "overview");
+  const selectedItem = allItems.find((item) => item.key === selectedKey);
   const [adminConfig, setAdminConfig] = useState<AdminConfig>({
     roles,
     rolePermissions,
@@ -166,6 +188,26 @@ export function DashboardWorkspace({ adminModules, dashboardModules, permissions
             </nav>
           </details>
         )}
+
+        {purchaseItems.length > 0 && (
+          <details className="mt-5" open>
+            <summary className="flex cursor-pointer list-none items-center justify-between text-sm font-medium">
+              Purchase Data
+              <ChevronDown className="size-4" />
+            </summary>
+            <nav className="mt-3 grid gap-1">
+              {purchaseItems.map((item) => (
+                <SidebarButton
+                  description={item.module.description}
+                  isActive={selectedKey === item.key}
+                  key={item.key}
+                  onClick={() => setSelectedKey(item.key)}
+                  title={item.module.title}
+                />
+              ))}
+            </nav>
+          </details>
+        )}
       </aside>
 
       <section className="min-w-0 space-y-4">
@@ -194,7 +236,7 @@ export function DashboardWorkspace({ adminModules, dashboardModules, permissions
 type WorkspaceItem = {
   key: string;
   module: AppModule;
-  section: "admin" | "work";
+  section: "admin" | "purchase" | "work";
 };
 
 function toWorkspaceItem(module: AppModule, section: WorkspaceItem["section"]): WorkspaceItem {
@@ -246,6 +288,10 @@ function WorkspacePanel({
       default:
         break;
     }
+  }
+
+  if (item.section === "purchase") {
+    return <PurchaseMasterPanel />;
   }
 
   return <WorkAreaPanel item={item} user={user} />;
@@ -668,6 +714,242 @@ function ProfilePanel({ user }: { user: User }) {
         <SettingRow label="Role" value={user.roleCode} />
         <SettingRow label="Status" value={user.status} />
         <SettingRow label="Stores" value={user.roleCode === "ADMIN" ? "All stores" : `${user.assignedStores.length} assigned`} />
+      </CardContent>
+    </Card>
+  );
+}
+
+function PurchaseMasterPanel() {
+  const [fy, setFy] = useState("2025-26");
+  const [storeName, setStoreName] = useState("PV");
+  const [supplier, setSupplier] = useState("Chaman Masala Co.");
+  const [gstNo, setGstNo] = useState("07ABCDE1234F1Z5");
+  const [rows, setRows] = useState<PurchaseMasterRow[]>([]);
+  const [masterRows, setMasterRows] = useState<PurchaseMasterRow[]>([]);
+  const [message, setMessage] = useState("");
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const fyOptions = Array.from(new Set(masterRows.map((row) => row.fy))).filter(Boolean);
+  const storeOptions = Array.from(new Set(masterRows.filter((row) => !fy || row.fy === fy).map((row) => row.store_name))).filter(Boolean);
+  const supplierOptions = Array.from(
+    new Set(masterRows.filter((row) => (!fy || row.fy === fy) && (!storeName || row.store_name === storeName)).map((row) => row.supplier)),
+  ).filter(Boolean);
+
+  async function loadRows() {
+    const params = new URLSearchParams();
+
+    if (fy) params.set("fy", fy);
+    if (storeName) params.set("store", storeName);
+    if (supplier) params.set("supplier", supplier);
+
+    const response = await fetch(`/api/purchase-master?${params.toString()}`);
+
+    if (!response.ok) {
+      setMessage("Unable to load purchase master");
+      return;
+    }
+
+    const result = (await response.json()) as { rows: PurchaseMasterRow[] };
+    setRows(result.rows);
+    setMessage(result.rows.length ? "Purchase master loaded" : "No purchase master rows found");
+
+    const firstMatch = result.rows[0];
+    if (firstMatch) {
+      setGstNo(firstMatch.gst_no);
+    }
+  }
+
+  async function loadMasterOptions() {
+    const response = await fetch("/api/purchase-master");
+
+    if (!response.ok) {
+      return;
+    }
+
+    const result = (await response.json()) as { rows: PurchaseMasterRow[] };
+    setMasterRows(result.rows);
+  }
+
+  function selectSupplier(value: string) {
+    setSupplier(value);
+    const normalizedStore = storeName.trim().toUpperCase();
+    const normalizedSupplier = value.trim().toLowerCase();
+    const match =
+      masterRows.find(
+        (row) =>
+          row.fy === fy &&
+          row.store_name.trim().toUpperCase() === normalizedStore &&
+          row.supplier.trim().toLowerCase() === normalizedSupplier,
+      ) ??
+      masterRows.find((row) => row.fy === fy && row.supplier.trim().toLowerCase() === normalizedSupplier) ??
+      masterRows.find((row) => row.supplier.trim().toLowerCase() === normalizedSupplier);
+
+    if (match) {
+      setGstNo(match.gst_no);
+    }
+  }
+
+  function selectStore(value: string) {
+    const nextStore = (value ?? "").toUpperCase();
+    setStoreName(nextStore);
+
+    const match = masterRows.find(
+      (row) =>
+        row.fy === fy &&
+        row.store_name.trim().toUpperCase() === nextStore &&
+        row.supplier.trim().toLowerCase() === supplier.trim().toLowerCase(),
+    );
+
+    if (match) {
+      setGstNo(match.gst_no);
+    }
+  }
+
+  async function saveRow() {
+    const response = await fetch("/api/purchase-master", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        fy,
+        gst_no: gstNo,
+        status: "ACTIVE",
+        store_name: storeName,
+        supplier,
+      }),
+    });
+
+    if (!response.ok) {
+      setMessage("Unable to save purchase master");
+      return;
+    }
+
+    setMessage("Purchase master saved");
+    await loadRows();
+  }
+
+  async function importCsv() {
+    if (!csvFile) {
+      setMessage("Please choose a CSV file first");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.set("file", csvFile);
+
+    const response = await fetch("/api/purchase-master/import", {
+      method: "POST",
+      body: formData,
+    });
+    const result = (await response.json()) as { error?: string; imported?: number; parsed?: number; skipped?: number };
+
+    if (!response.ok) {
+      setMessage(result.error ?? "Unable to import purchase master CSV");
+      return;
+    }
+
+    setMessage(`Imported ${result.imported ?? 0} rows, skipped ${result.skipped ?? 0}`);
+    setCsvFile(null);
+    await loadRows();
+  }
+
+  useEffect(() => {
+    void loadMasterOptions();
+    void loadRows();
+  }, []);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Purchase Master</CardTitle>
+        <CardDescription>FY, store, supplier and GST mapping from MongoDB purchase_master.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-3 md:grid-cols-4">
+          <Select value={fy} onValueChange={(value) => setFy(value ?? "")}>
+            <SelectTrigger>
+              <SelectValue placeholder="FY" />
+            </SelectTrigger>
+            <SelectContent>
+              {[fy, ...fyOptions].filter(Boolean).filter((value, index, values) => values.indexOf(value) === index).map((value) => (
+                <SelectItem key={value} value={value}>{value}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={storeName} onValueChange={(value) => selectStore(value ?? "")}>
+            <SelectTrigger>
+              <SelectValue placeholder="Store Name" />
+            </SelectTrigger>
+            <SelectContent>
+              {[storeName, ...storeOptions].filter(Boolean).filter((value, index, values) => values.indexOf(value) === index).map((value) => (
+                <SelectItem key={value} value={value}>{value}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={supplier} onValueChange={(value) => selectSupplier(value ?? "")}>
+            <SelectTrigger>
+              <SelectValue placeholder="Supplier" />
+            </SelectTrigger>
+            <SelectContent>
+              {[supplier, ...supplierOptions].filter(Boolean).filter((value, index, values) => values.indexOf(value) === index).map((value) => (
+                <SelectItem key={value} value={value}>{value}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Input placeholder="GST No" value={gstNo} onChange={(event) => setGstNo(event.target.value.toUpperCase())} />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={loadRows}>Show Data</Button>
+          <Button variant="outline" onClick={saveRow}>Save Test Master</Button>
+        </div>
+        <div className="rounded-xl border bg-muted/20 p-4">
+          <h3 className="font-medium">Bulk CSV Import</h3>
+          <p className="mt-1 text-sm text-muted-foreground">CSV columns: fy, store_name, supplier, gst_no, status</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Input
+              accept=".csv"
+              className="max-w-sm"
+              onChange={(event) => setCsvFile(event.target.files?.[0] ?? null)}
+              type="file"
+            />
+            <Button onClick={importCsv}>Import CSV</Button>
+          </div>
+        </div>
+        {message && <p className="rounded-lg border bg-muted/40 p-3 text-sm text-muted-foreground">{message}</p>}
+        <div className="overflow-hidden rounded-xl border">
+          <Table>
+            <TableHeader className="bg-muted/40">
+              <TableRow>
+                {["FY", "Store Name", "Supplier", "GST No", "Status"].map((head) => (
+                  <TableHead key={head}>{head}</TableHead>
+                ))}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.length === 0 && (
+                <TableRow>
+                  <TableCell className="text-muted-foreground" colSpan={5}>No purchase master data found.</TableCell>
+                </TableRow>
+              )}
+              {rows.map((row) => (
+                <TableRow
+                  className="cursor-pointer"
+                  key={row.id}
+                  onClick={() => {
+                    setFy(row.fy);
+                    setStoreName(row.store_name);
+                    setSupplier(row.supplier);
+                    setGstNo(row.gst_no);
+                  }}
+                >
+                  <TableCell>{row.fy}</TableCell>
+                  <TableCell>{row.store_name}</TableCell>
+                  <TableCell>{row.supplier}</TableCell>
+                  <TableCell>{row.gst_no}</TableCell>
+                  <TableCell><StatusBadge value={row.status} /></TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       </CardContent>
     </Card>
   );
