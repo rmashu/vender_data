@@ -1,5 +1,6 @@
 import type { Ledger } from "./ledger";
 
+
 type ImportResult = {
   rows: Ledger[];
   skipped: number;
@@ -8,31 +9,66 @@ type ImportResult = {
 type ColumnMap = Partial<Record<keyof Ledger, number>>;
 
 const headerAliases: Record<string, keyof Ledger> = {
-  amount: "pending_balance",
-  balance: "pending_balance",
-  billdate: "invoice_date",
-  billno: "invoice_no",
-  credit: "credit",
-  cr: "credit",
-  date: "invoice_date",
-  debit: "debit",
-  dr: "debit",
-  dueamount: "pending_balance",
-  invamount: "debit",
-  invoiceno: "invoice_no",
-  invoice: "invoice_no",
-  invoiceno2: "invoice_no",
-  particular: "store_name",
-  particulars: "store_name",
-  pending: "pending_balance",
-  pendingbalance: "pending_balance",
-  status: "status",
-  store: "store_name",
-  storename: "store_name",
-  type: "vch_type",
-  vchno: "invoice_no",
-  voucherno: "invoice_no",
-  vchtype: "vch_type",
+invoice: "invoice_no",
+invoiceno: "invoice_no",
+invoicenumber: "invoice_no",
+billno: "invoice_no",
+billnumber: "invoice_no",
+voucherno: "invoice_no",
+vouchernumber: "invoice_no",
+documentno: "invoice_no",
+documentnumber: "invoice_no",
+referenceno: "invoice_no",
+refno: "invoice_no",
+transactionid: "invoice_no",
+entryno: "invoice_no",
+serialno: "invoice_no",
+
+date: "invoice_date",
+invoicedate: "invoice_date",
+billdate: "invoice_date",
+voucherdate: "invoice_date",
+documentdate: "invoice_date",
+transactiondate: "invoice_date",
+postingdate: "invoice_date",
+entrydate: "invoice_date",
+
+debit: "debit",
+dr: "debit",
+debitamount: "debit",
+dramount: "debit",
+debitvalue: "debit",
+
+credit: "credit",
+cr: "credit",
+creditamount: "credit",
+cramount: "credit",
+creditvalue: "credit",
+
+balance: "pending_balance",
+closingbalance: "pending_balance",
+runningbalance: "pending_balance",
+balanceamount: "pending_balance",
+outstanding: "pending_balance",
+outstandingbalance: "pending_balance",
+
+type: "vch_type",
+transactiontype: "vch_type",
+entrytype: "vch_type",
+vouchertype: "vch_type",
+documenttype: "vch_type",
+transaction: "vch_type",
+vchtype: "vch_type",
+
+amount: "pending_balance",
+dueamount: "pending_balance",
+invamount: "debit",
+pending: "pending_balance",
+pendingbalance: "pending_balance",
+store: "store_name",
+storename: "store_name",
+vchno: "invoice_no",
+invoiceno2: "invoice_no",
 };
 
 export function importLedgerFile(fileName: string, content: string): ImportResult {
