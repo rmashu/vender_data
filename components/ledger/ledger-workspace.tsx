@@ -7,6 +7,7 @@ import { LedgerSummary } from "@/components/ledger/ledger-summary";
 import { LedgerTable } from "@/components/ledger/ledger-table";
 import type { Ledger } from "@/backend/ledger";
 import { stores, vendors } from "@/backend/masters/master-data";
+import { LedgerAccountSummary } from "@/components/ledger/ledger-summary";
 
 const blankRow = (storeName: string): Ledger => ({
   id: Date.now(),
@@ -14,6 +15,7 @@ const blankRow = (storeName: string): Ledger => ({
   invoice_no: "",
   invoice_date: new Date().toISOString().slice(0, 10),
   vch_type: "Sales",
+  opening_balance: 0,
   debit: 0,
   credit: 0,
   pending_balance: 0,
@@ -29,60 +31,68 @@ export function LedgerWorkspace() {
   const [message, setMessage] = useState("");
   const [hasUploadedCsv, setHasUploadedCsv] = useState(false);
 
-  const totals = useMemo(
-    () =>
-      rows.reduce(
-        (total, row) => ({
-          debit: total.debit + row.debit,
-          credit: total.credit + row.credit,
-          pending: total.pending + row.pending_balance,
-        }),
-        { debit: 0, credit: 0, pending: 0 },
-      ),
-    [rows],
+
+const totals = useMemo(() => {
+  const opening = rows.reduce((total, row) => total + row.opening_balance, 0);
+  const debit = rows.reduce((total, row) => total + row.debit, 0);
+  const credit = rows.reduce((total, row) => total + row.credit, 0);
+
+  return {
+    opening,
+    debit,
+    credit,
+    pending: opening + debit - credit,
+  };
+}, [rows]);
+
+const lastClosingBalance = rows.at(-1)?.pending_balance ?? 0;
+ 
+
+const update = (id: number, field: keyof Ledger, value: string) =>
+  setRows((current) =>
+    current.map((row) =>
+      row.id !== id
+        ? row
+        : {
+            ...row,
+            [field]: ["opening_balance", "debit", "credit", "pending_balance"].includes(field)
+              ? Number(value) || 0
+              : value,
+          },
+    ),
   );
 
-  const update = (id: number, field: keyof Ledger, value: string) =>
-    setRows((current) =>
-      current.map((row) =>
-        row.id !== id
-          ? row
-          : {
-              ...row,
-              [field]: ["debit", "credit", "pending_balance"].includes(field) ? Number(value) || 0 : value,
-            },
-      ),
-    );
+const save = async () => {
+  if (!hasUploadedCsv) {
+    setMessage("Please upload a CSV file before saving.");
+    return;
+  }
 
-  const save = async () => {
-    if (!hasUploadedCsv) {
-      setMessage("Please upload a CSV file before saving.");
-      return;
-    }
+  const response = await fetch("/api/save-vendor-ledger", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      vendor_name: vendor,
+      store_name: store,
+      date_from: from,
+      date_to: to,
+      upload_timestamp: new Date().toISOString(),
+      ledgers: rows.map((row) => ({ ...row, store_name: row.store_name || store })),
+    }),
+  });
 
-    const response = await fetch("/api/save-vendor-ledger", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        vendor_name: vendor,
-        store_name: store,
-        date_from: from,
-        date_to: to,
-        upload_timestamp: new Date().toISOString(),
-        ledgers: rows.map((row) => ({ ...row, store_name: store })),
-      }),
-    });
+  if (!response.ok) {
+    setMessage("Unable to save ledger");
+    return;
+  }
 
-    if (!response.ok) {
-      setMessage("Unable to save ledger");
-      return;
-    }
+  const result = (await response.json()) as { batchNumber?: string };
+  setRows([blankRow(store)]);
+  setHasUploadedCsv(false);
+  setMessage(result.batchNumber ? `Your Batch number: ${result.batchNumber}` : "Saved successfully");
+};
 
-    const result = (await response.json()) as { batchNumber?: string };
-    setRows([blankRow(store)]);
-    setHasUploadedCsv(false);
-    setMessage(result.batchNumber ? `Your Batch number: ${result.batchNumber}` : "Saved successfully");
-  };
+
 
   const clearForm = () => {
     setRows([blankRow(store)]);
@@ -127,7 +137,7 @@ export function LedgerWorkspace() {
         onToChange={setTo}
         onFileChange={(event) => upload(event.target.files?.[0] ?? null)}
       />
-      <LedgerSummary debit={totals.debit} credit={totals.credit} pending={totals.pending} />
+      <LedgerSummary debit={totals.debit} credit={totals.credit} pending={lastClosingBalance} />
       <LedgerTable rows={rows} onChange={update} onDelete={(id) => setRows(rows.filter((item) => item.id !== id))} />
       <footer className="flex justify-between">
         <div className="flex gap-2">

@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
+
 type DashboardWorkspaceProps = {
   adminModules: AppModule[];
   dashboardModules: AppModule[];
@@ -113,6 +114,7 @@ export function DashboardWorkspace({ adminModules, dashboardModules, permissions
     stores: Array.from(new Set(stores)),
     settings: { approvalRequired: true, csvOnlyUpload: true },
   });
+
 
   useEffect(() => {
     async function loadAdminConfig() {
@@ -1490,7 +1492,7 @@ function LedgerEntriesPanel({
       </div>
       <div className="grid gap-3 border-b p-4 md:grid-cols-5">
         <MetricCard label="Entries" value={batch.ledgers.length} />
-        <MetricCard label="Pending" value={summary.pending} />
+        <MetricCard label="Balance" value={summary.pending} />
         <MetricCard label="Partial" value={summary.partial} />
         <MetricCard label="Completed" value={summary.completed} />
         <MetricCard label="Pending Amount" value={formatMoney(summary.pendingAmount)} />

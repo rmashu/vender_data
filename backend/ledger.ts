@@ -4,6 +4,7 @@ export type Ledger = {
   invoice_no: string;
   invoice_date: string;
   vch_type: string;
+  opening_balance: number;
   debit: number;
   credit: number;
   pending_balance: number;
@@ -30,3 +31,5 @@ export function validateLedgerPayload(value: unknown): value is LedgerPayload {
     Array.isArray(payload.ledgers)
   );
 }
+
+

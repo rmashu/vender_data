@@ -23,6 +23,7 @@ refno: "invoice_no",
 transactionid: "invoice_no",
 entryno: "invoice_no",
 serialno: "invoice_no",
+vchbillno: "invoice_no",
 
 date: "invoice_date",
 invoicedate: "invoice_date",
@@ -33,19 +34,27 @@ transactiondate: "invoice_date",
 postingdate: "invoice_date",
 entrydate: "invoice_date",
 
+opening: "opening_balance",
+openingbalance: "opening_balance",
+openingamount: "opening_balance",
+openingbalancers: "opening_balance",
+
 debit: "debit",
 dr: "debit",
 debitamount: "debit",
 dramount: "debit",
 debitvalue: "debit",
+debitrs: "debit",
 
 credit: "credit",
+creditrs: "credit",
 cr: "credit",
 creditamount: "credit",
 cramount: "credit",
 creditvalue: "credit",
 
 balance: "pending_balance",
+balancers: "pending_balance",
 closingbalance: "pending_balance",
 runningbalance: "pending_balance",
 balanceamount: "pending_balance",
@@ -69,6 +78,9 @@ store: "store_name",
 storename: "store_name",
 vchno: "invoice_no",
 invoiceno2: "invoice_no",
+account: "store_name",
+shortnarration: "store_name",
+
 };
 
 export function importLedgerFile(fileName: string, content: string): ImportResult {
@@ -154,6 +166,7 @@ function normalizeRecord(record: Record<string, unknown>): Ledger | null {
     invoice_no: toText(record.invoice_no ?? record.invoice ?? record.vch_no ?? record.voucher_no),
     invoice_date: normalizeDate(toText(record.invoice_date ?? record.bill_date ?? record.date)),
     vch_type: toText(record.vch_type ?? record.type) || "Sales",
+    opening_balance: toNumber(record.opening_balance ?? record.opening ?? record.opening_balance_amount),
     debit: toNumber(record.debit ?? record.inv_amount ?? record.amount),
     credit: toNumber(record.credit),
     pending_balance: toNumber(record.pending_balance ?? record.balance ?? record.pending),
@@ -170,6 +183,7 @@ function normalizeCsvRow(cells: string[], map: ColumnMap): Ledger | null {
     invoice_no: getCell(cells, map.invoice_no),
     invoice_date: normalizeDate(getCell(cells, map.invoice_date)),
     vch_type: getCell(cells, map.vch_type) || "Sales",
+    opening_balance: toNumber(getCell(cells, map.opening_balance)),
     debit: toNumber(getCell(cells, map.debit)),
     credit: toNumber(getCell(cells, map.credit)),
     pending_balance: toNumber(getCell(cells, map.pending_balance)),
@@ -332,7 +346,7 @@ function toNumber(value: unknown) {
     return Number.isFinite(value) ? value : 0;
   }
 
-  const parsed = Number(toText(value).replace(/,/g, ""));
+  const parsed = Number(toText(value).replace(/,/g, "").replace(/dr|cr/gi, "").trim());
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
