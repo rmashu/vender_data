@@ -18,10 +18,10 @@ export function AppShell({ title, description, userEmail, children }: AppShellPr
           {description && <p className="text-sm text-muted-foreground">{description}</p>}
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link className="inline-flex h-8 items-center rounded-lg border px-3 text-sm hover:bg-muted" href="/dashboard">
+          <Link className="inline-flex h-10 items-center rounded-lg border px-3 text-sm hover:bg-muted" href="/dashboard">
             Dashboard
           </Link>
-          <Link className="inline-flex h-8 items-center rounded-lg border px-3 text-sm hover:bg-muted" href="/ledger">
+          <Link className="inline-flex h-10 items-center rounded-lg border px-3 text-sm hover:bg-muted" href="/ledger">
             Ledger
           </Link>
           <LogoutButton />
