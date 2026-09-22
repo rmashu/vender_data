@@ -10,13 +10,33 @@ export async function GET(request: Request) {
   }
 
   const url = new URL(request.url);
-  const rows = await listPurchaseMaster({
-    fy: url.searchParams.get("fy") ?? undefined,
-    store_name: url.searchParams.get("store") ?? undefined,
-    supplier: url.searchParams.get("supplier") ?? undefined,
-  });
+  const page = Number(url.searchParams.get("page") ?? "1");
+  const limit = Number(url.searchParams.get("limit") ?? "100");
+  const result = await listPurchaseMaster(
+    {
+      firstBillFrom: url.searchParams.get("firstBillFrom") ?? undefined,
+      firstBillTo: url.searchParams.get("firstBillTo") ?? undefined,
+      fy: toList(url.searchParams.get("fy")),
+      gst: url.searchParams.get("gst") ?? undefined,
+      status: toStatusList(url.searchParams.get("status")),
+      store_name: toList(url.searchParams.get("store")),
+      supplier: toList(url.searchParams.get("supplier")),
+    },
+    { limit, page },
+  );
 
-  return NextResponse.json({ rows });
+  return NextResponse.json(result);
+}
+
+function toList(value: string | null) {
+  return value
+    ?.split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function toStatusList(value: string | null) {
+  return toList(value)?.filter((item): item is "ACTIVE" | "INACTIVE" => item === "ACTIVE" || item === "INACTIVE");
 }
 
 export async function POST(request: Request) {
@@ -39,6 +59,7 @@ export async function POST(request: Request) {
       status: payload.status === "INACTIVE" ? "INACTIVE" : "ACTIVE",
       store_name: payload.store_name.trim().toUpperCase(),
       supplier: payload.supplier.trim(),
+      first_bill_date: payload.first_bill_date.trim(),
     },
     guard.session.user.email,
   );
@@ -46,11 +67,25 @@ export async function POST(request: Request) {
   return NextResponse.json({ success: true });
 }
 
-function isPayload(value: unknown): value is { fy: string; gst_no: string; status?: string; store_name: string; supplier: string } {
+function isPayload(value: unknown): value is {
+  fy: string;
+  gst_no: string;
+  status?: string;
+  store_name: string;
+  supplier: string;
+  first_bill_date: string;
+} {
   if (!value || typeof value !== "object") {
     return false;
   }
 
-  const payload = value as Partial<{ fy: string; gst_no: string; store_name: string; supplier: string }>;
-  return Boolean(payload.fy && payload.gst_no && payload.store_name && payload.supplier);
+  const payload = value as Partial<{
+    first_bill_date: string;
+    fy: string;
+    gst_no: string;
+    store_name: string;
+    supplier: string;
+  }>;
+
+  return Boolean(payload.fy && payload.gst_no && payload.store_name && payload.supplier && payload.first_bill_date);
 }
