@@ -1,4 +1,5 @@
 import { getMongoDb, isMongoConfigured } from "@/backend/database/mongodb";
+import { syncLedgerTrackerFromBatch } from "@/backend/purchase/ledger-tracker-repository";
 import type { LedgerPayload } from "./ledger";
 
 export type SavedLedgerBatch = {
@@ -20,6 +21,9 @@ export async function saveVendorLedger(payload: LedgerPayload, createdBy: string
     created_by: createdBy,
     created_at: new Date(),
     updated_at: new Date(),
+  });
+  await syncLedgerTrackerFromBatch(payload, createdBy).catch((error: unknown) => {
+    console.error("Unable to sync ledger tracker", error);
   });
 
   return {

@@ -80,7 +80,6 @@ vchno: "invoice_no",
 invoiceno2: "invoice_no",
 account: "store_name",
 shortnarration: "store_name",
-
 };
 
 export function importLedgerFile(fileName: string, content: string): ImportResult {
