@@ -154,7 +154,7 @@ export async function syncLedgerTrackerFromBatch(payload: LedgerPayload, created
   await saveLedgerTracker(
     {
       first_bill_date: master?.first_bill_date ?? firstLedgerDate,
-      fy,
+      fy: master?.fy ?? fy,
       gst_no: master?.gst_no ?? "",
       ledger_matched_till: ledgerMatchedTill,
       ledger_received_till: ledgerReceivedTill,
@@ -163,8 +163,8 @@ export async function syncLedgerTrackerFromBatch(payload: LedgerPayload, created
       closing_balance: closingBalance,
       remarks: "Auto updated from vendor ledger upload",
       status: ledgerMatchedTill && ledgerMatchedTill >= pendingTo ? "MATCHED" : "PENDING",
-      store_name: payload.store_name.trim().toUpperCase(),
-      supplier: payload.vendor_name.trim(),
+      store_name: master?.store_name ?? payload.store_name.trim().toUpperCase(),
+      supplier: master?.supplier ?? payload.vendor_name.trim(),
     },
     createdBy,
   );
@@ -177,13 +177,26 @@ async function findPurchaseMaster(input: {
 }) {
   const db = await getMongoDb();
 
-  return db.collection<Pick<LedgerTrackerInput, "first_bill_date" | "gst_no">>(
-    "purchase_master",
-  ).findOne({
-    fy: input.fy,
-    store_name: input.storeName.trim().toUpperCase(),
-    supplier: input.supplier.trim(),
-  });
+  const collection = db.collection<
+    Pick<LedgerTrackerInput, "first_bill_date" | "fy" | "gst_no" | "store_name" | "supplier">
+  >("purchase_master");
+  const supplier = input.supplier.trim();
+  const storeName = input.storeName.trim().toUpperCase();
+
+  return (
+    (await collection.findOne({
+      fy: input.fy,
+      store_name: storeName,
+      supplier,
+    })) ??
+    (await collection.findOne({
+      store_name: storeName,
+      supplier,
+    })) ??
+    (await collection.findOne({
+      supplier,
+    }))
+  );
 }
 
 function getNextDate(value: string) {
