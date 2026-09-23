@@ -53,11 +53,11 @@ creditamount: "credit",
 cramount: "credit",
 creditvalue: "credit",
 
-balance: "pending_balance",
-balancers: "pending_balance",
-closingbalance: "pending_balance",
-runningbalance: "pending_balance",
-balanceamount: "pending_balance",
+balance: "closing_balance",
+balancers: "closing_balance",
+closingbalance: "closing_balance",
+runningbalance: "closing_balance",
+balanceamount: "closing_balance",
 outstanding: "pending_balance",
 outstandingbalance: "pending_balance",
 
@@ -169,6 +169,7 @@ function normalizeRecord(record: Record<string, unknown>): Ledger | null {
     debit: toNumber(record.debit ?? record.inv_amount ?? record.amount),
     credit: toNumber(record.credit),
     pending_balance: toNumber(record.pending_balance ?? record.balance ?? record.pending),
+    closing_balance: toNumber(record.closing_balance ?? record.balance ?? record.pending_balance ?? record.pending),
     status: toText(record.status).toUpperCase() || "PENDING",
   };
 
@@ -186,8 +187,13 @@ function normalizeCsvRow(cells: string[], map: ColumnMap): Ledger | null {
     debit: toNumber(getCell(cells, map.debit)),
     credit: toNumber(getCell(cells, map.credit)),
     pending_balance: toNumber(getCell(cells, map.pending_balance)),
+    closing_balance: toNumber(getCell(cells, map.closing_balance)),
     status: getCell(cells, map.status).toUpperCase() || "PENDING",
   };
+
+  if (!row.pending_balance) {
+    row.pending_balance = row.closing_balance;
+  }
 
   if (!row.pending_balance && row.debit > row.credit) {
     row.pending_balance = row.debit - row.credit;

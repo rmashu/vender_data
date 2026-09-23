@@ -8,6 +8,7 @@ export type Ledger = {
   debit: number;
   credit: number;
   pending_balance: number;
+  closing_balance: number;
   status: string;
 };
 
@@ -31,5 +32,4 @@ export function validateLedgerPayload(value: unknown): value is LedgerPayload {
     Array.isArray(payload.ledgers)
   );
 }
-
 

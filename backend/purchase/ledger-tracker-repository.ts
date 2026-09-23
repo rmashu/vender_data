@@ -12,6 +12,7 @@ export type LedgerTrackerRecord = {
   ledger_received_till: string;
   pending_from: string;
   pending_to: string;
+  closing_balance: number;
   remarks: string;
   status: "MATCHED" | "MISMATCH" | "PENDING";
   store_name: string;
@@ -28,6 +29,7 @@ export type LedgerTrackerInput = Pick<
   | "ledger_received_till"
   | "pending_from"
   | "pending_to"
+  | "closing_balance"
   | "remarks"
   | "status"
   | "store_name"
@@ -76,6 +78,7 @@ export async function listLedgerTrackers(filters: LedgerTrackerFilters = {}) {
       ledger_received_till: row.ledger_received_till ?? "",
       pending_from: row.pending_from ?? "",
       pending_to: row.pending_to ?? "",
+      closing_balance: row.closing_balance ?? 0,
       remarks: row.remarks ?? "",
       status: row.status ?? "PENDING",
       store_name: row.store_name,
@@ -137,6 +140,10 @@ export async function syncLedgerTrackerFromBatch(payload: LedgerPayload, created
     ? getNextDate(ledgerMatchedTill)
     : firstLedgerDate;
   const pendingTo = getCurrentDate();
+  const latestLedgerRow = payload.ledgers[payload.ledgers.length - 1];
+  const closingBalance = Number(
+    latestLedgerRow?.closing_balance ?? latestLedgerRow?.pending_balance ?? 0,
+  );
   const fy = getFyFromDate(firstLedgerDate);
   const master = await findPurchaseMaster({
     fy,
@@ -153,6 +160,7 @@ export async function syncLedgerTrackerFromBatch(payload: LedgerPayload, created
       ledger_received_till: ledgerReceivedTill,
       pending_from: pendingFrom,
       pending_to: pendingTo,
+      closing_balance: closingBalance,
       remarks: "Auto updated from vendor ledger upload",
       status: ledgerMatchedTill && ledgerMatchedTill >= pendingTo ? "MATCHED" : "PENDING",
       store_name: payload.store_name.trim().toUpperCase(),
