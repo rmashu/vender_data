@@ -52,6 +52,7 @@ export async function POST(request: Request) {
       ledger_received_till: payload.ledger_received_till.trim(),
       pending_from: payload.pending_from.trim(),
       pending_to: payload.pending_to.trim(),
+      closing_balance: Number(payload.closing_balance ?? 0),
       remarks: payload.remarks?.trim() ?? "",
       status: payload.status === "MATCHED" ? "MATCHED" : "PENDING",
       store_name: payload.store_name.trim().toUpperCase(),
@@ -71,6 +72,7 @@ function isPayload(value: unknown): value is {
   ledger_received_till: string;
   pending_from: string;
   pending_to: string;
+  closing_balance?: number | string;
   remarks?: string;
   status?: string;
   store_name: string;
@@ -88,6 +90,7 @@ function isPayload(value: unknown): value is {
     ledger_received_till: string;
     pending_from: string;
     pending_to: string;
+    closing_balance: number | string;
     store_name: string;
     supplier: string;
   }>;
