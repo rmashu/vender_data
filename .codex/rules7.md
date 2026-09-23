@@ -29,3 +29,17 @@
 - Keep API filters compatible with single-value dropdowns and future multi-value query params.
 - Use MongoDB `vendor_ledgers` or `purchase_master` as the source for tracker dropdown data depending on the selected business flow.
 - Run `pnpm typecheck` after TypeScript or API changes.
+
+## Latest Updates
+
+- Ledger Tracker filter bar should show only FY, Store, Supplier, Status and `Load Tracker`.
+- Ledger Tracker manual save form is no longer needed for normal flow because tracker data syncs from vendor ledger upload.
+- Ledger Tracker table columns now include `Closing Balance`.
+- Ledger Tracker pending display should combine `pending_from` and `pending_to` into one `Pending Period` column.
+- `pending_to` should represent the current date for open pending periods, not only the last vendor ledger date.
+- Closing balance should come from the real vendor ledger closing value.
+- For tracker sync, closing balance must use the original uploaded ledger row order's last row, not date-sorted last row.
+- CSV import should preserve `closing_balance` from headers like `Closing Balance`, `Balance(Rs.)`, `Balance` and `Balance Amount`.
+- Old MongoDB uploads may not contain `closing_balance`; re-upload or backfill is required for previous batches.
+- `Vendor Ledger Details` can show full party ledger rows; tracker row click can later open those related details.
+

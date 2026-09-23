@@ -116,6 +116,7 @@ type LedgerTrackerRow = {
   ledger_received_till: string
   pending_from: string
   pending_to: string
+  closing_balance: number
   remarks: string
   status: "MATCHED" | "MISMATCH" | "PENDING"
   store_name: string
@@ -1734,6 +1735,7 @@ function PurchaseMasterPanel() {
                       "Received Till",
                       "Matched Till",
                       "Pending Period",
+                      "Closing Balance",
                       "Status",
                       "Remarks",
                     ].map((head) => (
@@ -1744,7 +1746,7 @@ function PurchaseMasterPanel() {
                 <TableBody>
                   {trackerRows.length === 0 && (
                     <TableRow>
-                      <TableCell className="text-muted-foreground" colSpan={9}>
+                      <TableCell className="text-muted-foreground" colSpan={10}>
                         No ledger tracker data found.
                       </TableCell>
                     </TableRow>
@@ -1771,6 +1773,7 @@ function PurchaseMasterPanel() {
                       <TableCell>{formatMonthYear(row.ledger_received_till)}</TableCell>
                       <TableCell>{formatMonthYear(row.ledger_matched_till)}</TableCell>
                       <TableCell>{formatPendingPeriod(row.pending_from, row.pending_to)}</TableCell>
+                      <TableCell>{formatMoney(row.closing_balance)}</TableCell>
                       <TableCell>
                         <Badge variant={row.status === "MATCHED" ? "secondary" : "outline"}>
                           {row.status}

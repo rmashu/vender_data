@@ -19,6 +19,7 @@ const blankRow = (storeName: string): Ledger => ({
   debit: 0,
   credit: 0,
   pending_balance: 0,
+  closing_balance: 0,
   status: "PENDING",
 });
 
@@ -55,7 +56,7 @@ const update = (id: number, field: keyof Ledger, value: string) =>
         ? row
         : {
             ...row,
-            [field]: ["opening_balance", "debit", "credit", "pending_balance"].includes(field)
+            [field]: ["opening_balance", "debit", "credit", "pending_balance", "closing_balance"].includes(field)
               ? Number(value) || 0
               : value,
           },
