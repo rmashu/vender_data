@@ -18,10 +18,8 @@ export const dashboardModules: AppModule[] = [
 
 export const adminModules: AppModule[] = [
   { title: "Users", description: "Create, disable and manage users", href: "/admin/users", permission: "users:manage" },
-  { title: "Roles", description: "Manage role definitions", href: "/admin/roles", permission: "roles:manage" },
   { title: "Permissions", description: "Control module and action access", href: "/admin/permissions", permission: "permissions:manage" },
   { title: "Data Management", description: "Manage vendors, stores and master data", href: "/admin/masters", permission: "masters:manage" },
-  { title: "Reports", description: "Admin level reporting views", href: "/admin/reports", permission: "reports:view" },
   { title: "Audit Logs", description: "Track user actions and record changes", href: "/admin/audit-logs", permission: "audit:view" },
   { title: "System Settings", description: "Configure app wide settings", href: "/admin/settings", permission: "settings:manage" },
 ];

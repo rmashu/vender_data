@@ -109,6 +109,38 @@ export async function savePurchaseMaster(input: PurchaseMasterInput, createdBy: 
   );
 }
 
+export async function listPurchaseMasterOptions() {
+  if (!isMongoConfigured()) {
+    return { rows: [] };
+  }
+
+  const db = await getMongoDb();
+  const rows = await db
+    .collection<PurchaseMasterRecord>("purchase_master")
+    .aggregate<Pick<PurchaseMasterRecord, "store_name" | "supplier">>([
+      { $match: { status: "ACTIVE" } },
+      {
+        $group: {
+          _id: {
+            store_name: "$store_name",
+            supplier: "$supplier",
+          },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          store_name: "$_id.store_name",
+          supplier: "$_id.supplier",
+        },
+      },
+      { $sort: { store_name: 1, supplier: 1 } },
+    ])
+    .toArray();
+
+  return { rows };
+}
+
 export async function importPurchaseMasterRows(rows: PurchaseMasterInput[], createdBy: string) {
   if (!isMongoConfigured()) {
     throw new Error("MONGODB_URI is not configured");

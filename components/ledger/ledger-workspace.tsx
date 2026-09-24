@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { LedgerForm } from "@/components/ledger/ledger-form";
 import { LedgerSummary } from "@/components/ledger/ledger-summary";
@@ -8,6 +8,11 @@ import { LedgerTable } from "@/components/ledger/ledger-table";
 import type { Ledger } from "@/backend/ledger";
 import { stores, vendors } from "@/backend/masters/master-data";
 import { LedgerAccountSummary } from "@/components/ledger/ledger-summary";
+
+type PurchaseMasterOption = {
+  store_name: string;
+  supplier: string;
+};
 
 const blankRow = (storeName: string): Ledger => ({
   id: Date.now(),
@@ -31,6 +36,58 @@ export function LedgerWorkspace() {
   const [rows, setRows] = useState<Ledger[]>([blankRow(stores[0] ?? "")]);
   const [message, setMessage] = useState("");
   const [hasUploadedCsv, setHasUploadedCsv] = useState(false);
+  const [masterOptions, setMasterOptions] = useState<PurchaseMasterOption[]>([]);
+
+  const storeOptions = useMemo(
+    () =>
+      Array.from(
+        new Set([
+          ...masterOptions.map((option) => option.store_name),
+          ...stores,
+        ]),
+      ).filter(Boolean),
+    [masterOptions],
+  );
+
+  const vendorOptions = useMemo(
+    () =>
+      Array.from(
+        new Set([
+          ...masterOptions.map((option) => option.supplier),
+          ...vendors,
+        ]),
+      ).filter(Boolean),
+    [masterOptions],
+  );
+
+  useEffect(() => {
+    async function loadMasterOptions() {
+      const response = await fetch("/api/purchase-master/options");
+
+      if (!response.ok) {
+        return;
+      }
+
+      const result = (await response.json()) as {
+        rows: PurchaseMasterOption[];
+      };
+      setMasterOptions(result.rows);
+    }
+
+    void loadMasterOptions();
+  }, []);
+
+  useEffect(() => {
+    if (storeOptions.length && !storeOptions.includes(store)) {
+      setStore(storeOptions[0]);
+    }
+  }, [store, storeOptions]);
+
+  useEffect(() => {
+    if (vendorOptions.length && !vendorOptions.includes(vendor)) {
+      setVendor(vendorOptions[0]);
+    }
+  }, [vendor, vendorOptions]);
 
 
 const totals = useMemo(() => {
@@ -126,8 +183,8 @@ const save = async () => {
   return (
     <>
       <LedgerForm
-        stores={stores}
-        vendors={vendors}
+        stores={storeOptions}
+        vendors={vendorOptions}
         store={store}
         vendor={vendor}
         from={from}

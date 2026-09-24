@@ -527,15 +527,15 @@ function WorkAreaPanel({ item, user }: { item: WorkspaceItem; user: User }) {
 function MyWorkPanel({ user }: { user: User }) {
   const [work, setWork] = useState<RecordsResult | null>(null)
 
-  useEffect(() => {
-    async function loadWork() {
-      const response = await fetch("/api/my-work")
+  async function loadWork() {
+    const response = await fetch("/api/my-work")
 
-      if (response.ok) {
-        setWork((await response.json()) as RecordsResult)
-      }
+    if (response.ok) {
+      setWork((await response.json()) as RecordsResult)
     }
+  }
 
+  useEffect(() => {
     void loadWork()
   }, [])
 
@@ -548,19 +548,16 @@ function MyWorkPanel({ user }: { user: User }) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid gap-3 md:grid-cols-3">
-          <MetricCard label="My Batches" value={work?.summary.batches ?? 0} />
-          <MetricCard label="My Rows" value={work?.summary.rows ?? 0} />
-          <MetricCard label="CSV Format" value="Ready" />
-        </div>
+        <div className="grid gap-3 md:grid-cols-3"></div>
         <div className="rounded-lg border p-4">
           <h3 className="font-medium">Quick Actions</h3>
           <div className="mt-3 flex flex-wrap gap-2">
             <Button onClick={() => window.location.assign("/ledger")}>
               Upload Ledger CSV
             </Button>
-            <Button variant="outline">View My Batches</Button>
-            <Button variant="outline">Download CSV Format</Button>
+          <Button variant="outline" onClick={downloadLedgerCsvFormat}>
+            Download CSV Format
+          </Button>
           </div>
         </div>
         {work && (
@@ -1088,7 +1085,9 @@ function PurchaseMasterPanel() {
   const [ledgerMatchedTill, setLedgerMatchedTill] = useState("")
   const [trackerRemarks, setTrackerRemarks] = useState("")
   const [trackerStatusFilter, setTrackerStatusFilter] = useState("ALL")
-  const [vendorLedgerRows, setVendorLedgerRows] = useState<VendorLedgerDetailRow[]>([])
+  const [vendorLedgerRows, setVendorLedgerRows] = useState<
+    VendorLedgerDetailRow[]
+  >([])
   const [vendorLedgerPage, setVendorLedgerPage] = useState(1)
   const [vendorLedgerTotal, setVendorLedgerTotal] = useState(0)
   const [vendorLedgerLimit] = useState(50)
@@ -1106,31 +1105,32 @@ function PurchaseMasterPanel() {
   const trackerSummary = trackerRows[0]
   const optionRows = [...masterRows, ...rows]
   const fyOptions = Array.from(
-    new Set([...optionRows.map((row) => row.fy), "2023-24", "2024-25", "2025-26"])
+    new Set([
+      ...optionRows.map((row) => row.fy),
+      "2023-24",
+      "2024-25",
+      "2025-26",
+    ])
   ).filter(Boolean)
   const storeOptions = Array.from(
-    new Set(
-      [
-        ...optionRows
-          .filter((row) => fy === "ALL" || !fy || row.fy === fy)
-          .map((row) => row.store_name),
-        ...stores,
-      ]
-    )
+    new Set([
+      ...optionRows
+        .filter((row) => fy === "ALL" || !fy || row.fy === fy)
+        .map((row) => row.store_name),
+      ...stores,
+    ])
   ).filter(Boolean)
   const supplierOptions = Array.from(
-    new Set(
-      [
-        ...optionRows
-          .filter(
-            (row) =>
-              (fy === "ALL" || !fy || row.fy === fy) &&
-              (storeName === "ALL" || !storeName || row.store_name === storeName)
-          )
-          .map((row) => row.supplier),
-        ...vendors,
-      ]
-    )
+    new Set([
+      ...optionRows
+        .filter(
+          (row) =>
+            (fy === "ALL" || !fy || row.fy === fy) &&
+            (storeName === "ALL" || !storeName || row.store_name === storeName)
+        )
+        .map((row) => row.supplier),
+      ...vendors,
+    ])
   ).filter(Boolean)
 
   async function loadRows(nextPage = page) {
@@ -1140,7 +1140,8 @@ function PurchaseMasterPanel() {
     if (fy && fy !== "ALL") params.set("fy", fy)
     if (storeName && storeName !== "ALL") params.set("store", storeName)
     if (supplier && supplier !== "ALL") params.set("supplier", supplier)
-    if (statusFilter && statusFilter !== "ALL") params.set("status", statusFilter)
+    if (statusFilter && statusFilter !== "ALL")
+      params.set("status", statusFilter)
     if (gstSearch) params.set("gst", gstSearch)
     if (firstBillFrom) params.set("firstBillFrom", firstBillFrom)
     if (firstBillTo) params.set("firstBillTo", firstBillTo)
@@ -1153,7 +1154,10 @@ function PurchaseMasterPanel() {
       return
     }
 
-    const result = (await response.json()) as { rows: PurchaseMasterRow[]; total: number }
+    const result = (await response.json()) as {
+      rows: PurchaseMasterRow[]
+      total: number
+    }
     setRows(result.rows)
     setMasterRows((current) => (current.length ? current : result.rows))
     setPage(nextPage)
@@ -1349,6 +1353,7 @@ function PurchaseMasterPanel() {
 
     setMessage("Purchase master saved")
     await loadRows(1)
+    await loadMasterOptions()
   }
 
   async function importCsv() {
@@ -1381,6 +1386,7 @@ function PurchaseMasterPanel() {
     )
     setCsvFile(null)
     await loadRows(1)
+    await loadMasterOptions()
   }
 
   function resetFilters() {
@@ -1406,7 +1412,7 @@ function PurchaseMasterPanel() {
       <CardHeader>
         <CardTitle>Purchase Master</CardTitle>
         <CardDescription>
-          FY, store, supplier and GST mapping from MongoDB purchase_master.
+          FY, store, supplier and GST mapping purchase_master.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -1414,247 +1420,270 @@ function PurchaseMasterPanel() {
           <TabsList>
             <TabsTrigger value="master">Master Data</TabsTrigger>
             <TabsTrigger value="tracker">Ledger Tracker</TabsTrigger>
-            <TabsTrigger value="vendor-ledgers">Vendor Ledger Details</TabsTrigger>
+            <TabsTrigger value="vendor-ledgers">
+              Vendor Ledger Details
+            </TabsTrigger>
           </TabsList>
           <TabsContent value="master" className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <Sheet>
-            <SheetTrigger render={<Button variant="outline" />}>
-              Filters
-            </SheetTrigger>
-            <SheetContent className="w-full sm:max-w-md">
-              <SheetHeader>
-                <SheetTitle>Purchase Master Filters</SheetTitle>
-                <SheetDescription>
-                  Select filters and apply to reload the table from page 1.
-                </SheetDescription>
-              </SheetHeader>
-              <div className="grid gap-3 overflow-y-auto px-4 pb-2">
-                <div className="space-y-2 rounded-lg border p-3">
-                  <p className="text-sm font-medium">FY</p>
-                  <Select
-                    value={fy}
-                    onValueChange={(value) => {
-                      const nextFy = value ?? "ALL"
-                      setFy(nextFy)
-                      if (nextFy === "ALL") {
-                        setGstNo("")
-                        setFirstBillDate("")
-                      }
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="FY" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {["ALL", fy, ...fyOptions]
-                        .filter(Boolean)
-                        .filter((value, index, values) => values.indexOf(value) === index)
-                        .map((value) => (
-                          <SelectItem key={value} value={value}>
-                            {value}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2 rounded-lg border p-3">
-                  <p className="text-sm font-medium">Store Name</p>
-                  <Select
-                    value={storeName}
-                    onValueChange={(value) => selectStore(value ?? "ALL")}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Store Name" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {["ALL", storeName, ...storeOptions]
-                        .filter(Boolean)
-                        .filter((value, index, values) => values.indexOf(value) === index)
-                        .map((value) => (
-                          <SelectItem key={value} value={value}>
-                            {value}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2 rounded-lg border p-3">
-                  <p className="text-sm font-medium">Supplier</p>
-                  <Select
-                    value={supplier}
-                    onValueChange={(value) => selectSupplier(value ?? "ALL")}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Supplier" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {["ALL", supplier, ...supplierOptions]
-                        .filter(Boolean)
-                        .filter((value, index, values) => values.indexOf(value) === index)
-                        .map((value) => (
-                          <SelectItem key={value} value={value}>
-                            {value}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <DateRangeFilter
-                  label="First Bill Date"
-                  from={firstBillFrom}
-                  to={firstBillTo}
-                  onFromChange={setFirstBillFrom}
-                  onToChange={setFirstBillTo}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <Sheet>
+                <SheetTrigger render={<Button variant="outline" />}>
+                  Filters
+                </SheetTrigger>
+                <SheetContent className="w-full sm:max-w-md">
+                  <SheetHeader>
+                    <SheetTitle>Purchase Master Filters</SheetTitle>
+                    <SheetDescription>
+                      Select filters and apply to reload the table from page 1.
+                    </SheetDescription>
+                  </SheetHeader>
+                  <div className="grid gap-3 overflow-y-auto px-4 pb-2">
+                    <div className="space-y-2 rounded-lg border p-3">
+                      <p className="text-sm font-medium">FY</p>
+                      <Select
+                        value={fy}
+                        onValueChange={(value) => {
+                          const nextFy = value ?? "ALL"
+                          setFy(nextFy)
+                          if (nextFy === "ALL") {
+                            setGstNo("")
+                            setFirstBillDate("")
+                          }
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="FY" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {["ALL", fy, ...fyOptions]
+                            .filter(Boolean)
+                            .filter(
+                              (value, index, values) =>
+                                values.indexOf(value) === index
+                            )
+                            .map((value) => (
+                              <SelectItem key={value} value={value}>
+                                {value}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2 rounded-lg border p-3">
+                      <p className="text-sm font-medium">Store Name</p>
+                      <Select
+                        value={storeName}
+                        onValueChange={(value) => selectStore(value ?? "ALL")}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Store Name" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {["ALL", storeName, ...storeOptions]
+                            .filter(Boolean)
+                            .filter(
+                              (value, index, values) =>
+                                values.indexOf(value) === index
+                            )
+                            .map((value) => (
+                              <SelectItem key={value} value={value}>
+                                {value}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2 rounded-lg border p-3">
+                      <p className="text-sm font-medium">Supplier</p>
+                      <Select
+                        value={supplier}
+                        onValueChange={(value) =>
+                          selectSupplier(value ?? "ALL")
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Supplier" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {["ALL", supplier, ...supplierOptions]
+                            .filter(Boolean)
+                            .filter(
+                              (value, index, values) =>
+                                values.indexOf(value) === index
+                            )
+                            .map((value) => (
+                              <SelectItem key={value} value={value}>
+                                {value}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <DateRangeFilter
+                      label="First Bill Date"
+                      from={firstBillFrom}
+                      to={firstBillTo}
+                      onFromChange={setFirstBillFrom}
+                      onToChange={setFirstBillTo}
+                    />
+                    <SearchInputFilter
+                      label="GST No"
+                      placeholder="Search GST No"
+                      value={gstSearch}
+                      onChange={setGstSearch}
+                    />
+                    <div className="space-y-2 rounded-lg border p-3">
+                      <p className="text-sm font-medium">Status</p>
+                      <Select
+                        value={statusFilter}
+                        onValueChange={(value) =>
+                          setStatusFilter(value ?? "ALL")
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {["ALL", "ACTIVE", "INACTIVE"].map((value) => (
+                            <SelectItem key={value} value={value}>
+                              {value}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <SheetFooter>
+                    <Button variant="outline" onClick={resetFilters}>
+                      Reset
+                    </Button>
+                    <Button className="w-full" onClick={() => loadRows(1)}>
+                      Apply Filters
+                    </Button>
+                  </SheetFooter>
+                </SheetContent>
+              </Sheet>
+            </div>
+            <div className="rounded-xl border bg-muted/20 p-4">
+              <h3 className="font-medium">Bulk CSV Import</h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                CSV columns: fy, store_name, supplier, first_bill_date, gst_no,
+                status
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Input
+                  accept=".csv"
+                  className="max-w-sm"
+                  onChange={(event) =>
+                    setCsvFile(event.target.files?.[0] ?? null)
+                  }
+                  type="file"
                 />
-                <SearchInputFilter
-                  label="GST No"
-                  placeholder="Search GST No"
-                  value={gstSearch}
-                  onChange={setGstSearch}
-                />
-                <div className="space-y-2 rounded-lg border p-3">
-                  <p className="text-sm font-medium">Status</p>
-                  <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value ?? "ALL")}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {["ALL", "ACTIVE", "INACTIVE"].map((value) => (
-                        <SelectItem key={value} value={value}>
-                          {value}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                <Button onClick={importCsv}>Import CSV</Button>
               </div>
-              <SheetFooter>
-                <Button variant="outline" onClick={resetFilters}>
-                  Reset
-                </Button>
-                <Button className="w-full" onClick={() => loadRows(1)}>
-                  Apply Filters
-                </Button>
-              </SheetFooter>
-            </SheetContent>
-          </Sheet>
-          <Button variant="outline" onClick={saveRow}>
-            Save Master
-          </Button>
-        </div>
-        <div className="rounded-xl border bg-muted/20 p-4">
-          <h3 className="font-medium">Bulk CSV Import</h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            CSV columns: fy, store_name, supplier, first_bill_date, gst_no,
-            status
-          </p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Input
-              accept=".csv"
-              className="max-w-sm"
-              onChange={(event) => setCsvFile(event.target.files?.[0] ?? null)}
-              type="file"
-            />
-            <Button onClick={importCsv}>Import CSV</Button>
-          </div>
-        </div>
-        {message && (
-          <p className="rounded-lg border bg-muted/40 p-3 text-sm text-muted-foreground">
-            {message}
-          </p>
-        )}
-        <div className="overflow-hidden rounded-xl border">
-          <Table>
-            <TableHeader className="bg-muted/40">
-              <TableRow>
-                {[
-                  "FY",
-                  "Store Name",
-                  "Supplier",
-                  "First Bill Date",
-                  "GST No",
-                  "Status",
-                ].map((head) => (
-                  <TableHead key={head}>{head}</TableHead>
-                ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {!hasSearched && (
-                <TableRow>
-                  <TableCell className="text-muted-foreground" colSpan={6}>
-                    Loading purchase master rows.
-                  </TableCell>
-                </TableRow>
-              )}
-              {hasSearched && rows.length === 0 && (
-                <TableRow>
-                  <TableCell className="text-muted-foreground" colSpan={6}>
-                    No purchase master data found.
-                  </TableCell>
-                </TableRow>
-              )}
-              {rows.map((row) => (
-                <TableRow
-                  className="cursor-pointer"
-                  key={row.id}
-                  onClick={() => {
-                    setFy(row.fy)
-                    setStoreName(row.store_name)
-                    setSupplier(row.supplier)
-                    setFirstBillDate(row.first_bill_date)
-                    setGstNo(row.gst_no)
-                  }}
+            </div>
+            {message && (
+              <p className="rounded-lg border bg-muted/40 p-3 text-sm text-muted-foreground">
+                {message}
+              </p>
+            )}
+            <div className="overflow-hidden rounded-xl border">
+              <Table>
+                <TableHeader className="bg-muted/40">
+                  <TableRow>
+                    {[
+                      "FY",
+                      "Store Name",
+                      "Supplier",
+                      "First Bill Date",
+                      "GST No",
+                      "Status",
+                    ].map((head) => (
+                      <TableHead key={head}>{head}</TableHead>
+                    ))}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {!hasSearched && (
+                    <TableRow>
+                      <TableCell className="text-muted-foreground" colSpan={6}>
+                        Loading purchase master rows.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {hasSearched && rows.length === 0 && (
+                    <TableRow>
+                      <TableCell className="text-muted-foreground" colSpan={6}>
+                        No purchase master data found.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {rows.map((row) => (
+                    <TableRow
+                      className="cursor-pointer"
+                      key={row.id}
+                      onClick={() => {
+                        setFy(row.fy)
+                        setStoreName(row.store_name)
+                        setSupplier(row.supplier)
+                        setFirstBillDate(row.first_bill_date)
+                        setGstNo(row.gst_no)
+                      }}
+                    >
+                      <TableCell>{row.fy}</TableCell>
+                      <TableCell>{row.store_name}</TableCell>
+                      <TableCell>{row.supplier}</TableCell>
+                      <TableCell>{row.first_bill_date}</TableCell>
+                      <TableCell>{row.gst_no}</TableCell>
+                      <TableCell>
+                        <StatusBadge value={row.status} />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            <div className="flex items-center justify-between rounded-xl border p-3 text-sm">
+              <span className="text-muted-foreground">
+                Rows: {rowStart}-{rowEnd} of {total}
+              </span>
+              <div className="flex items-center gap-2">
+                <Button
+                  disabled={page <= 1}
+                  variant="outline"
+                  onClick={() => loadRows(page - 1)}
                 >
-                  <TableCell>{row.fy}</TableCell>
-                  <TableCell>{row.store_name}</TableCell>
-                  <TableCell>{row.supplier}</TableCell>
-                  <TableCell>{row.first_bill_date}</TableCell>
-                  <TableCell>{row.gst_no}</TableCell>
-                  <TableCell>
-                    <StatusBadge value={row.status} />
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-        <div className="flex items-center justify-between rounded-xl border p-3 text-sm">
-          <span className="text-muted-foreground">
-            Rows: {rowStart}-{rowEnd} of {total}
-          </span>
-          <div className="flex items-center gap-2">
-            <Button
-              disabled={page <= 1}
-              variant="outline"
-              onClick={() => loadRows(page - 1)}
-            >
-              Previous
-            </Button>
-            <span>Page {page}</span>
-            <Button
-              disabled={page * limit >= total}
-              variant="outline"
-              onClick={() => loadRows(page + 1)}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
+                  Previous
+                </Button>
+                <span>Page {page}</span>
+                <Button
+                  disabled={page * limit >= total}
+                  variant="outline"
+                  onClick={() => loadRows(page + 1)}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
           </TabsContent>
           <TabsContent value="tracker" className="space-y-4">
             <div className="grid gap-3 rounded-xl border bg-muted/20 p-4 md:grid-cols-5">
               <div className="space-y-2">
                 <p className="text-sm font-medium">FY</p>
-                <Select value={fy} onValueChange={(value) => setFy(value ?? "ALL")}>
+                <Select
+                  value={fy}
+                  onValueChange={(value) => setFy(value ?? "ALL")}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="FY" />
                   </SelectTrigger>
                   <SelectContent>
                     {["ALL", fy, ...fyOptions]
                       .filter(Boolean)
-                      .filter((value, index, values) => values.indexOf(value) === index)
+                      .filter(
+                        (value, index, values) =>
+                          values.indexOf(value) === index
+                      )
                       .map((value) => (
                         <SelectItem key={value} value={value}>
                           {value}
@@ -1665,14 +1694,20 @@ function PurchaseMasterPanel() {
               </div>
               <div className="space-y-2">
                 <p className="text-sm font-medium">Store</p>
-                <Select value={storeName} onValueChange={(value) => selectStore(value ?? "ALL")}>
+                <Select
+                  value={storeName}
+                  onValueChange={(value) => selectStore(value ?? "ALL")}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Store" />
                   </SelectTrigger>
                   <SelectContent>
                     {["ALL", storeName, ...storeOptions]
                       .filter(Boolean)
-                      .filter((value, index, values) => values.indexOf(value) === index)
+                      .filter(
+                        (value, index, values) =>
+                          values.indexOf(value) === index
+                      )
                       .map((value) => (
                         <SelectItem key={value} value={value}>
                           {value}
@@ -1683,14 +1718,20 @@ function PurchaseMasterPanel() {
               </div>
               <div className="space-y-2">
                 <p className="text-sm font-medium">Supplier</p>
-                <Select value={supplier} onValueChange={(value) => selectSupplier(value ?? "ALL")}>
+                <Select
+                  value={supplier}
+                  onValueChange={(value) => selectSupplier(value ?? "ALL")}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Supplier" />
                   </SelectTrigger>
                   <SelectContent>
                     {["ALL", supplier, ...supplierOptions]
                       .filter(Boolean)
-                      .filter((value, index, values) => values.indexOf(value) === index)
+                      .filter(
+                        (value, index, values) =>
+                          values.indexOf(value) === index
+                      )
                       .map((value) => (
                         <SelectItem key={value} value={value}>
                           {value}
@@ -1703,7 +1744,9 @@ function PurchaseMasterPanel() {
                 <p className="text-sm font-medium">Status</p>
                 <Select
                   value={trackerStatusFilter}
-                  onValueChange={(value) => setTrackerStatusFilter(value ?? "ALL")}
+                  onValueChange={(value) =>
+                    setTrackerStatusFilter(value ?? "ALL")
+                  }
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Status" />
@@ -1769,13 +1812,25 @@ function PurchaseMasterPanel() {
                       <TableCell>{row.fy}</TableCell>
                       <TableCell>{row.store_name}</TableCell>
                       <TableCell>{row.supplier}</TableCell>
-                      <TableCell>{formatMonthYear(row.first_bill_date)}</TableCell>
-                      <TableCell>{formatMonthYear(row.ledger_received_till)}</TableCell>
-                      <TableCell>{formatMonthYear(row.ledger_matched_till)}</TableCell>
-                      <TableCell>{formatPendingPeriod(row.pending_from, row.pending_to)}</TableCell>
+                      <TableCell>
+                        {formatMonthYear(row.first_bill_date)}
+                      </TableCell>
+                      <TableCell>
+                        {formatMonthYear(row.ledger_received_till)}
+                      </TableCell>
+                      <TableCell>
+                        {formatMonthYear(row.ledger_matched_till)}
+                      </TableCell>
+                      <TableCell>
+                        {formatPendingPeriod(row.pending_from, row.pending_to)}
+                      </TableCell>
                       <TableCell>{formatMoney(row.closing_balance)}</TableCell>
                       <TableCell>
-                        <Badge variant={row.status === "MATCHED" ? "secondary" : "outline"}>
+                        <Badge
+                          variant={
+                            row.status === "MATCHED" ? "secondary" : "outline"
+                          }
+                        >
                           {row.status}
                         </Badge>
                       </TableCell>
@@ -1789,7 +1844,8 @@ function PurchaseMasterPanel() {
           <TabsContent value="vendor-ledgers" className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-muted/20 p-4">
               <p className="text-sm text-muted-foreground">
-                Showing vendor ledger rows for selected FY, store, supplier and GST.
+                Showing vendor ledger rows for selected FY, store, supplier and
+                GST.
               </p>
               <Button onClick={() => loadVendorLedgerRows(1)}>
                 Load Vendor Ledger
@@ -1824,7 +1880,10 @@ function PurchaseMasterPanel() {
                   <TableBody>
                     {vendorLedgerRows.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={15} className="text-muted-foreground">
+                        <TableCell
+                          colSpan={15}
+                          className="text-muted-foreground"
+                        >
                           No vendor ledger details found.
                         </TableCell>
                       </TableRow>
@@ -1867,7 +1926,9 @@ function PurchaseMasterPanel() {
                 </Button>
                 <span>Page {vendorLedgerPage}</span>
                 <Button
-                  disabled={vendorLedgerPage * vendorLedgerLimit >= vendorLedgerTotal}
+                  disabled={
+                    vendorLedgerPage * vendorLedgerLimit >= vendorLedgerTotal
+                  }
                   variant="outline"
                   onClick={() => loadVendorLedgerRows(vendorLedgerPage + 1)}
                 >
@@ -2212,6 +2273,8 @@ function DataManagementPanel({
   const [newVendor, setNewVendor] = useState("")
   const [newStore, setNewStore] = useState("")
   const [message, setMessage] = useState("")
+  const [lastVendorAdded, setLastVendorAdded] = useState("")
+  const [lastStoreAdded, setLastStoreAdded] = useState("")
 
   useEffect(() => {
     setVendorList(adminConfig.vendors)
@@ -2224,10 +2287,9 @@ function DataManagementPanel({
       return
     }
     setVendorList((current) => [...current, value])
+    setLastVendorAdded(value)
     setNewVendor("")
-    setMessage(
-      "Vendor added in admin panel. Database save API can persist it next."
-    )
+    setMessage(`Vendor added: ${value}. Click Save Master Data to save.`)
   }
 
   function addStore() {
@@ -2236,10 +2298,9 @@ function DataManagementPanel({
       return
     }
     setStoreList((current) => [...current, value])
+    setLastStoreAdded(value)
     setNewStore("")
-    setMessage(
-      "Store added in admin panel. Database save API can persist it next."
-    )
+    setMessage(`Store added: ${value}. Click Save Master Data to save.`)
   }
 
   async function saveMasterData() {
@@ -2259,7 +2320,9 @@ function DataManagementPanel({
       stores: storeList,
       vendors: vendorList,
     })
-    setMessage("Master data saved")
+    setLastVendorAdded("")
+    setLastStoreAdded("")
+    setMessage("Save successful | Vendor update saved | Store update saved")
   }
 
   return (
@@ -2303,10 +2366,20 @@ function DataManagementPanel({
         <div className="grid gap-4 md:grid-cols-2">
           <MasterPreview
             title="Vendor Master"
-            items={vendorList.slice(0, 12)}
+            items={vendorList.slice(-12)}
           />
-          <MasterPreview title="Store Master" items={storeList.slice(0, 16)} />
+          <MasterPreview title="Store Master" items={storeList.slice(-16)} />
         </div>
+        {(lastVendorAdded || lastStoreAdded) && (
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="rounded-lg border bg-muted/20 p-3 text-sm">
+              Vendor update: {lastVendorAdded || "No new vendor"}
+            </div>
+            <div className="rounded-lg border bg-muted/20 p-3 text-sm">
+              Store update: {lastStoreAdded || "No new store"}
+            </div>
+          </div>
+        )}
         <div className="flex items-center justify-between rounded-lg border bg-muted/30 p-3">
           <p className="text-sm text-muted-foreground">
             Master edits are admin-controlled and saved to MongoDB admin config.
@@ -3076,6 +3149,32 @@ function SettingRow({ label, value }: { label: string; value: string }) {
     </div>
   )
 }
+
+
+function downloadLedgerCsvFormat() {
+  const headers = [
+    "Store",
+    "Invoice No",
+    "Invoice Date",
+    "Vch Type",
+    "Opening Balance",
+    "Debit(Rs.)",
+    "Credit(Rs.)",
+    "Closing Balance",
+    "Status",
+  ];
+
+  const csv = `${headers.join(",")}\n`;
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = "vendor-ledger-format.csv";
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+
 
 function ToggleSetting({
   checked,

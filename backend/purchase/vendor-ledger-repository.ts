@@ -20,8 +20,12 @@ export async function listVendorLedgers(
   }
 
   const batchMatch = {
-    ...(filters.store ? { store_name: filters.store.trim().toUpperCase() } : {}),
-    ...(filters.supplier ? { vendor_name: filters.supplier.trim() } : {}),
+    ...(filters.store
+      ? { store_name: { $regex: `^${escapeRegex(filters.store.trim())}$`, $options: "i" } }
+      : {}),
+    ...(filters.supplier
+      ? { vendor_name: { $regex: normalizeNameRegex(filters.supplier), $options: "i" } }
+      : {}),
   };
   const fyMatch = getFyDateMatch(filters.fy);
 
@@ -116,4 +120,12 @@ function getFyFromDate(value?: string) {
 
   const startYear = month >= 4 ? year : year - 1;
   return `${startYear}-${String(startYear + 1).slice(2)}`;
+}
+
+function normalizeNameRegex(value: string) {
+  return escapeRegex(value.trim()).replace(/\\[ ._-]+/g, "[ ._-]*");
+}
+
+function escapeRegex(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

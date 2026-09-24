@@ -143,7 +143,7 @@ export async function getRecordDetail(batchNumber: string, session: AuthSession)
     createdAt: String(record.created_at),
     dateFrom: record.date_from,
     dateTo: record.date_to,
-    ledgers: record.ledgers,
+    ledgers:record.ledgers,
     store: record.store_name,
     vendor: record.vendor_name,
   };
